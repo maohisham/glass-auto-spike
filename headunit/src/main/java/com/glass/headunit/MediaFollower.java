@@ -39,6 +39,7 @@ final class MediaFollower {
     private long lastPos, lastPosAt;      // the position we last published and when, to notice a seek
     private boolean lastPlaying;
     private boolean started;
+    private long lostAt;   // when the followed player first went missing (0 = it is here); see FollowGrace
     private Bitmap cover;
     private String coverId = "", coverLoading = "";
     private String lastRecorded = "";
@@ -52,17 +53,32 @@ final class MediaFollower {
             publish();
         }
         @Override public void onPlaybackStateChanged(PlaybackState s) { publish(); }
-        @Override public void onSessionDestroyed() { detach(); publish(); }
+        @Override public void onSessionDestroyed() {
+            // players drop and re-create their session at a track change: wait before treating it as gone
+            if (lostAt == 0) { lostAt = SystemClock.elapsedRealtime(); Spike.log("session ended: waiting up to " + FollowGrace.GRACE_MS / 1000 + " s for the player to come back"); }
+        }
     };
 
     private final Runnable pickTick = new Runnable() {
         @Override public void run() {
             if (SystemClock.elapsedRealtime() < switchLockUntil) { publish(); handler.postDelayed(this, 2000); return; }
             MediaController best = Proxy.findActive(ctx, target);
-            if (best == null) {
-                if (target != null) detach();
-            } else if (target == null || !best.getSessionToken().equals(target.getSessionToken())) {
-                if (target == null || (isPlaying(best) && !isPlaying(target))) attach(best);
+            long now = SystemClock.elapsedRealtime();
+            if (target == null) {
+                if (best != null) attach(best);
+            } else {
+                MediaController same = Proxy.find(ctx, target.getPackageName());
+                boolean present = same != null && same.getSessionToken().equals(target.getSessionToken());
+                if (!present && same != null) { rebind(same); present = true; }   // same app, new session: follow it with no gap
+                boolean wasLost = lostAt != 0;
+                lostAt = FollowGrace.mark(lostAt, present, now);
+                if (!wasLost && lostAt != 0) Spike.log("lost the player's session: waiting up to " + FollowGrace.GRACE_MS / 1000 + " s for it to come back");
+                if (!present) {
+                    if (best != null && isPlaying(best)) attach(best);          // another app took over
+                    else if (FollowGrace.shouldDetach(lostAt, now)) { Spike.log("the player did not come back: showing the idle screen"); detach(); }
+                } else if (best != null && !best.getSessionToken().equals(target.getSessionToken()) && isPlaying(best) && !isPlaying(target)) {
+                    attach(best);                                               // another app is playing while ours is not
+                }
             }
             publish();
             handler.postDelayed(this, 2000);
@@ -138,12 +154,25 @@ final class MediaFollower {
         trackMaybeChanged();
     }
 
+    /** The same app gave us a new session (it re-creates it at a track change): follow that one, keeping the lyrics and cover on screen. */
+    private void rebind(MediaController c) {
+        try { if (target != null) target.unregisterCallback(mirror); } catch (Exception ignored) { }
+        target = c;
+        c.registerCallback(mirror, handler);
+        try { compat = new MediaControllerCompat(ctx, MediaSessionCompat.Token.fromToken(c.getSessionToken())); }
+        catch (Exception e) { compat = null; }
+        lostAt = 0;
+        Spike.log("followed " + c.getPackageName() + "'s new session");
+        trackMaybeChanged();
+    }
+
     private void detach() {
         if (target != null) {
             try { target.unregisterCallback(mirror); } catch (Exception ignored) { }
             Spike.log("no longer following " + target.getPackageName());
         }
         target = null;
+        lostAt = 0;
         compat = null;
         cover = null;
         coverId = "";
@@ -255,6 +284,7 @@ final class MediaFollower {
     }
 
     private void publish() {
+        if (lostAt != 0 && target != null) return;   // the player is briefly missing: keep what the panel shows
         NowPlaying n = snapshot();
         String key = n.key();
         long at = SystemClock.elapsedRealtime();
