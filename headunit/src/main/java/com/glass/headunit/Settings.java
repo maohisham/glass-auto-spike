@@ -65,4 +65,8 @@ final class Settings {
     /** The lyrics' own text size: -1 follows the panel's text size, 0 small, 1 medium, 2 large, 3 extra large. */
     int lyricsSize() { return sp.getInt("lyricsSize", -1); }
     void setLyricsSize(int v) { sp.edit().putInt("lyricsSize", Math.max(-1, Math.min(3, v))).apply(); }
+
+    /** Open Google Maps beside the panel when the panel starts (on by default). */
+    boolean autoOpenMaps() { return sp.getBoolean("autoOpenMaps", true); }
+    void setAutoOpenMaps(boolean v) { sp.edit().putBoolean("autoOpenMaps", v).apply(); }
 }

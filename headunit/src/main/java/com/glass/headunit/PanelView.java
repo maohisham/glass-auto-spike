@@ -444,7 +444,10 @@ final class PanelView extends LinearLayout {
     }
 
     /** One tap to Google Maps: beside the panel when the screen is split, full-screen when the split did not start. */
-    void openMaps() {
+    void openMaps() { openMaps(true); }
+
+    /** explain is true for a tap on the button: then a missing window helper is explained; the automatic start stays quiet. */
+    void openMaps(boolean explain) {
         Intent i = getContext().getPackageManager().getLaunchIntentForPackage(MAPS);
         if (i == null) return;
         i.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
@@ -452,7 +455,7 @@ final class PanelView extends LinearLayout {
         // The system splits the screen 50:50: the window helper moves the divider to the user's ratio
         SplitHelperService helper = SplitHelperService.get();
         if (helper != null) helper.applyRatioWhenSplit();
-        else if (!toldAboutHelper) {
+        else if (explain && !toldAboutHelper) {
             toldAboutHelper = true;
             android.widget.Toast.makeText(getContext(), "Turn on the window helper (Settings, Setup) to set the map/panel ratio.", android.widget.Toast.LENGTH_LONG).show();
             Spike.log("ratio not applied: the window helper is off");
@@ -465,7 +468,7 @@ final class PanelView extends LinearLayout {
         if (headerScroll != null) headerScroll.setMaxHeightPx(PanelStyle.headerMaxPx(h));
     }
 
-    private boolean mapsInstalled() {
+    boolean mapsInstalled() {
         try {
             return getContext().getPackageManager().getApplicationInfo(MAPS, 0).enabled;
         } catch (PackageManager.NameNotFoundException e) { return false; }

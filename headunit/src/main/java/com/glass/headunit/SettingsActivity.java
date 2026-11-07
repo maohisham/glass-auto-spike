@@ -49,6 +49,8 @@ public class SettingsActivity extends Activity {
         });
         root.addView(seek);
 
+        root.addView(toggle("Open Google Maps beside the panel when it starts", s.autoOpenMaps(), s::setAutoOpenMaps));
+
         root.addView(heading("Text size"));
         root.addView(choice(new String[]{"Small", "Medium", "Large"}, s.textSize(), s::setTextSize));
         root.addView(heading("Lyrics text size"));

@@ -28,6 +28,7 @@ public class PanelActivity extends Activity {
     private Forecast forecast;
     private SpeedFollower speed;
     private int tickCount;
+    private boolean freshStart;   // true until the first start of this new panel has been handled
     private long lastSpeedAt;   // when the last GPS speed arrived (0 = none yet)
     private final SpeedAlertPolicy alertPolicy = new SpeedAlertPolicy();
     private SpeedAlert speedAlert;
@@ -64,6 +65,7 @@ public class PanelActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         demo = getIntent().getBooleanExtra("demo", false);
+        freshStart = b == null;
         panel = new PanelView(this);
         applyStyle(getResources().getConfiguration());
         panel.setOnSettings(() -> startActivity(new android.content.Intent(this, SettingsActivity.class)));
@@ -230,9 +232,14 @@ public class PanelActivity extends Activity {
             });
             speed.start();
         }
-        if (getIntent().getBooleanExtra(EXTRA_BESIDE, false)) {
-            getIntent().removeExtra(EXTRA_BESIDE);
-            handler.postDelayed(() -> panel.openMaps(), 800);
+        // open Google Maps beside the panel: when the window helper asked for it at boot, or on every fresh start of the panel
+        boolean helperAsked = getIntent().getBooleanExtra(EXTRA_BESIDE, false);
+        getIntent().removeExtra(EXTRA_BESIDE);
+        boolean auto = MapsAutoOpen.shouldOpen(Settings.of(this).autoOpenMaps(), panel.mapsInstalled(), freshStart, demo);
+        freshStart = false;
+        if (helperAsked || auto) {
+            Spike.log("opening Google Maps beside the panel" + (helperAsked ? " (window helper)" : " (panel start)"));
+            handler.postDelayed(() -> panel.openMaps(false), 800);
         }
     }
 
