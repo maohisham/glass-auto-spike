@@ -154,7 +154,8 @@ final class PanelView extends LinearLayout {
         return t;
     }
 
-    private int iconDp(int base) { return Math.round(base * (mode == PanelMode.COMPACT ? 0.92f : 1f)); }
+    /** Icon size in dp, a little smaller on a narrow panel but never below a comfortable tap target. */
+    private int iconDp(int base) { return Math.max(34, Math.round(base * (mode == PanelMode.COMPACT ? 0.92f : 1f))); }
 
     private IconView icon(Icon i, String description, int sizeDp, IconView.Style style, Runnable r) {
         return new IconView(getContext(), i, description, dark, iconDp(sizeDp), style, r);
@@ -268,24 +269,24 @@ final class PanelView extends LinearLayout {
 
         nowBox = new LinearLayout(getContext());
         nowBox.setOrientation(VERTICAL);
-        nowBox.setPadding(0, dp(12), 0, dp(4));
-        title = text(20, true, fg);
-        title.setMaxLines(2);
+        nowBox.setPadding(0, dp(8), 0, 0);
+        title = text(17, true, fg);
+        title.setMaxLines(1);
         title.setEllipsize(TextUtils.TruncateAt.END);
-        artist = text(15, false, dim);
+        artist = text(13, false, dim);
         artist.setMaxLines(1);
         artist.setEllipsize(TextUtils.TruncateAt.END);
         songRow = new LinearLayout(getContext());
         songRow.setOrientation(HORIZONTAL);
         songRow.setGravity(Gravity.CENTER_VERTICAL);
-        coverView = new CoverView(getContext(), dark, Math.round(60 * (mode == PanelMode.COMPACT ? 0.92f : 1f)));
+        coverView = new CoverView(getContext(), dark, Math.round(48 * (mode == PanelMode.COMPACT ? 0.92f : 1f)));
         songRow.addView(coverView);
         LinearLayout words = new LinearLayout(getContext());
         words.setOrientation(VERTICAL);
         words.addView(title);
         words.addView(artist);
         LayoutParams wl = new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
-        wl.leftMargin = dp(12);
+        wl.leftMargin = dp(10);
         songRow.addView(words, wl);
         nowBox.addView(songRow);
 
@@ -293,7 +294,7 @@ final class PanelView extends LinearLayout {
         progRow = new LinearLayout(getContext());
         progRow.setOrientation(HORIZONTAL);
         progRow.setGravity(Gravity.CENTER_VERTICAL);
-        progRow.setPadding(0, dp(10), 0, 0);
+        progRow.setPadding(0, dp(6), 0, 0);
         elapsedText = text(12, false, dim);
         durationText = text(12, false, dim);
         mediaBar = new BarView(getContext(), dark, true);
@@ -309,22 +310,22 @@ final class PanelView extends LinearLayout {
         mediaRow = new LinearLayout(getContext());
         mediaRow.setOrientation(HORIZONTAL);
         mediaRow.setGravity(Gravity.CENTER);
-        mediaRow.setPadding(0, dp(10), 0, 0);
-        shuffleBtn = icon(Icon.SHUFFLE, "Shuffle", 42, IconView.Style.NORMAL, () -> { if (controls != null) controls.toggleShuffle(); });
-        prevBtn = icon(Icon.PREV, "Previous", 50, IconView.Style.NORMAL, () -> { if (controls != null) controls.previous(); });
-        mainBtn = icon(Icon.PLAY, "Play", 62, IconView.Style.MAIN, () -> { if (controls != null) { if (now.playing) controls.pause(); else controls.play(); } });
-        nextBtn = icon(Icon.NEXT, "Next", 50, IconView.Style.NORMAL, () -> { if (controls != null) controls.next(); });
-        repeatBtn = icon(Icon.REPEAT, "Repeat off", 42, IconView.Style.NORMAL, () -> { if (controls != null) controls.toggleRepeat(); });
+        mediaRow.setPadding(0, dp(6), 0, 0);
+        shuffleBtn = icon(Icon.SHUFFLE, "Shuffle", 36, IconView.Style.NORMAL, () -> { if (controls != null) controls.toggleShuffle(); });
+        prevBtn = icon(Icon.PREV, "Previous", 44, IconView.Style.NORMAL, () -> { if (controls != null) controls.previous(); });
+        mainBtn = icon(Icon.PLAY, "Play", 52, IconView.Style.MAIN, () -> { if (controls != null) { if (now.playing) controls.pause(); else controls.play(); } });
+        nextBtn = icon(Icon.NEXT, "Next", 44, IconView.Style.NORMAL, () -> { if (controls != null) controls.next(); });
+        repeatBtn = icon(Icon.REPEAT, "Repeat off", 36, IconView.Style.NORMAL, () -> { if (controls != null) controls.toggleRepeat(); });
         // invisible spacers keep play centred when only one of shuffle and repeat is offered
         leftSpacer = new View(getContext());
         rightSpacer = new View(getContext());
         mediaRow.addView(shuffleBtn);
-        mediaRow.addView(leftSpacer, new LayoutParams(Glass.dp(getContext(), iconDp(42)), 1));
-        mediaRow.addView(prevBtn, gapped(10));
-        mediaRow.addView(mainBtn, gapped(10));
-        mediaRow.addView(nextBtn, gapped(10));
-        mediaRow.addView(rightSpacer, new LayoutParams(Glass.dp(getContext(), iconDp(42)) + dp(10), 1));
-        mediaRow.addView(repeatBtn, gapped(10));
+        mediaRow.addView(leftSpacer, new LayoutParams(Glass.dp(getContext(), iconDp(36)), 1));
+        mediaRow.addView(prevBtn, gapped(8));
+        mediaRow.addView(mainBtn, gapped(8));
+        mediaRow.addView(nextBtn, gapped(8));
+        mediaRow.addView(rightSpacer, new LayoutParams(Glass.dp(getContext(), iconDp(36)) + dp(8), 1));
+        mediaRow.addView(repeatBtn, gapped(8));
         nowBox.addView(mediaRow);
 
         headerBlock.addView(nowBox);

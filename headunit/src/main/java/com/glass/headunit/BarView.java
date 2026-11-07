@@ -37,13 +37,13 @@ final class BarView extends View {
 
     @Override
     protected void onMeasure(int w, int h) {
-        setMeasuredDimension(resolveSize(Glass.dp(getContext(), 100), w), Glass.dp(getContext(), knob ? 18 : 10));
+        setMeasuredDimension(resolveSize(Glass.dp(getContext(), 100), w), Glass.dp(getContext(), knob ? 14 : 10));
     }
 
     @Override
     protected void onDraw(Canvas c) {
         float h = Glass.dp(getContext(), knob ? 6 : 8), w = getWidth(), top = (getHeight() - h) / 2f, rad = h / 2f;
-        float pad = knob ? Glass.dp(getContext(), 8) : 0;
+        float pad = knob ? Glass.dp(getContext(), 7) : 0;
         r.set(pad, top, w - pad, top + h);
         c.drawRoundRect(r, rad, rad, track);
         float end = pad + (w - 2 * pad) * fraction;
@@ -53,6 +53,6 @@ final class BarView extends View {
             r.set(pad, top, Math.max(end, pad + h), top + h);
             c.drawRoundRect(r, rad, rad, fillP);
         }
-        if (knob) c.drawCircle(Math.max(end, pad), getHeight() / 2f, Glass.dp(getContext(), 7), knobP);
+        if (knob) c.drawCircle(Math.max(end, pad), getHeight() / 2f, Glass.dp(getContext(), 6), knobP);
     }
 }
