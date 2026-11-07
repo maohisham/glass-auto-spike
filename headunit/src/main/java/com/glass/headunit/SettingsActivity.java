@@ -60,7 +60,7 @@ public class SettingsActivity extends Activity {
         root.addView(toggle("Auto-play the last player when the panel starts", s.autoPlayLast(), s::setAutoPlayLast));
 
         root.addView(heading("Driving"));
-        root.addView(toggle("Driving score (uses the GPS while the panel is open)", s.driveScore(), s::setDriveScore));
+        root.addView(toggle("Driving score and speed (uses the GPS while the panel is open)", s.driveScore(), s::setDriveScore));
 
         root.addView(heading("Prayer zone"));
         zoneRow = new TextView(this);

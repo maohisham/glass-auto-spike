@@ -28,6 +28,7 @@ public class PanelActivity extends Activity {
     private Forecast forecast;
     private SpeedFollower speed;
     private int tickCount;
+    private long lastSpeedAt;   // when the last GPS speed arrived (0 = none yet)
     private static boolean autoPlayScheduled;   // once per process (per panel start)
     private MediaFollower follower;
     private PanelController controller;
@@ -37,6 +38,8 @@ public class PanelActivity extends Activity {
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             panel.tick();
+            // a speed that stops being refreshed (GPS lost its fix) turns to dashes rather than staying frozen
+            if (!demo && SpeedFormat.isStale(lastSpeedAt, System.currentTimeMillis())) panel.showSpeed(0f, false);
             if (prayerScreen != null) prayerScreen.tick();
             if (++tickCount % 5 == 0) {
                 EcoScore trip = DriveTrip.trip();
@@ -184,8 +187,11 @@ public class PanelActivity extends Activity {
         handler.post(tick);
         if (!demo) BubbleService.apply(this);
         panel.setScoreEnabled(Settings.of(this).driveScore());
+        lastSpeedAt = 0;
+        panel.showSpeed(0f, false);
         if (demo) {
             forecast = DemoData.forecast();
+            panel.showSpeed(64f, true);
             seedDemoTrip();
             panel.showScore(DriveTrip.trip().calculate(System.currentTimeMillis()));
             panel.showData(demoPrayer(), demoWeather(), false, false);
@@ -208,7 +214,12 @@ public class PanelActivity extends Activity {
         controller.start();
         scheduleAutoPlay();
         if (Settings.of(this).driveScore()) {
-            speed = new SpeedFollower(this, kmh -> DriveTrip.trip().onSpeed(kmh, System.currentTimeMillis()));
+            speed = new SpeedFollower(this, kmh -> {
+                long now = System.currentTimeMillis();
+                DriveTrip.trip().onSpeed(kmh, now);
+                lastSpeedAt = now;
+                panel.showSpeed(kmh, true);
+            });
             speed.start();
         }
         if (getIntent().getBooleanExtra(EXTRA_BESIDE, false)) {

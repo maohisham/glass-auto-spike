@@ -37,7 +37,9 @@ final class PanelView extends LinearLayout {
     private Runnable onPlayer, onSettings, onPrayer, onDrive, onWeather;
     private boolean scoreEnabled = true;
     private EcoScore.Stats score;
-    private TextView scoreChip;
+    private TextView scoreChip, speedChip;
+    private float speedKmh;
+    private boolean speedFix;
 
     private Prayer.Data prayer;
     private Weather.Data weather;
@@ -80,6 +82,13 @@ final class PanelView extends LinearLayout {
         if (on == scoreEnabled) return;
         scoreEnabled = on;
         build();
+    }
+
+    /** The current speed for the chip; pass hasFix false when there is no reading. */
+    void showSpeed(float kmh, boolean hasFix) {
+        speedKmh = kmh;
+        speedFix = hasFix;
+        bindSpeed();
     }
 
     /** The latest score, or null when there is no trip yet. */
@@ -152,7 +161,7 @@ final class PanelView extends LinearLayout {
     }
 
     /** A tappable area inside a glass card that lights up while pressed. */
-    private LinearLayout tapArea(String description, TextView content, Runnable onClick) {
+    private LinearLayout tapArea(String description, View content, Runnable onClick) {
         LinearLayout box = new LinearLayout(getContext());
         box.setOrientation(VERTICAL);
         box.setPadding(dp(10), dp(8), dp(10), dp(8));
@@ -201,7 +210,16 @@ final class PanelView extends LinearLayout {
         if (mapsInstalled()) { topRow.addView(icon(Icon.MAPS, "Open Maps", 44, IconView.Style.NORMAL, this::openMaps), gapped(firstIcon ? 0 : 12)); }
         topRow.addView(new View(getContext()), new LayoutParams(0, 1, 1f));
         scoreChip = null;
+        speedChip = null;
         if (scoreEnabled) {
+            speedChip = text(16, true, fg);
+            speedChip.setGravity(Gravity.CENTER);
+            speedChip.setPadding(dp(16), dp(10), dp(16), dp(10));
+            speedChip.setBackground(Glass.button(getContext(), dark, false, false, 22));
+            speedChip.setContentDescription("Current speed");
+            LayoutParams sp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+            sp.rightMargin = dp(10);
+            topRow.addView(speedChip, sp);
             scoreChip = text(16, true, dim);
             scoreChip.setGravity(Gravity.CENTER);
             scoreChip.setPadding(dp(16), dp(10), dp(16), dp(10));
@@ -223,13 +241,20 @@ final class PanelView extends LinearLayout {
         prayerText = text(16, true, accent);
         // two tappable halves: the weather opens the forecast, the prayer opens the table
         LinearLayout weatherBox = tapArea("Open the weather", weatherText, () -> { if (onWeather != null) onWeather.run(); });
-        LinearLayout prayerBox = tapArea("Open the prayer times", prayerText, () -> { if (onPrayer != null) onPrayer.run(); });
+        // the mosque icon sits at the left of the prayer text
+        LinearLayout prayerLine = new LinearLayout(getContext());
+        prayerLine.setOrientation(HORIZONTAL);
+        prayerLine.setGravity(mode == PanelMode.COMPACT ? Gravity.CENTER_VERTICAL | Gravity.START : Gravity.CENTER_VERTICAL | Gravity.END);
+        prayerLine.addView(new GlyphView(getContext(), Icon.MOSQUE, 24, accent, "Prayer"));
+        LayoutParams pl = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        pl.leftMargin = dp(8);
+        prayerLine.addView(prayerText, pl);
+        LinearLayout prayerBox = tapArea("Open the prayer times", prayerLine, () -> { if (onPrayer != null) onPrayer.run(); });
         if (mode == PanelMode.COMPACT) {
             stripBox.addView(prayerBox, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
             stripBox.addView(weatherBox, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         } else {
             stripBox.addView(weatherBox, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
-            prayerText.setGravity(Gravity.END);
             stripBox.addView(prayerBox, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.4f));
         }
         headerBlock.addView(stripBox);
@@ -337,6 +362,17 @@ final class PanelView extends LinearLayout {
         bindNow();
         bindLyricsArea();
         bindScore();
+        bindSpeed();
+    }
+
+    private void bindSpeed() {
+        if (speedChip == null) return;
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(SpeedFormat.text(speedKmh, speedFix));
+        int numberEnd = sb.length();
+        sb.append(" km/h");
+        sb.setSpan(new android.text.style.RelativeSizeSpan(0.68f), numberEnd, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.setSpan(new android.text.style.ForegroundColorSpan(PanelStyle.dim(dark)), numberEnd, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        speedChip.setText(sb);
     }
 
     private void bindScore() {
