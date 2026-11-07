@@ -23,6 +23,9 @@ public class PanelActivity extends Activity {
     private android.widget.FrameLayout root;
     private PlayerPicker picker;
     private PrayerScreen prayerScreen;
+    private DriveScreen driveScreen;
+    private SpeedFollower speed;
+    private int tickCount;
     private static boolean autoPlayScheduled;   // once per process (per panel start)
     private MediaFollower follower;
     private PanelController controller;
@@ -33,6 +36,11 @@ public class PanelActivity extends Activity {
         @Override public void run() {
             panel.tick();
             if (prayerScreen != null) prayerScreen.tick();
+            if (++tickCount % 5 == 0) {
+                EcoScore trip = DriveTrip.trip();
+                panel.showScore(trip.isTripActive() ? trip.calculate(System.currentTimeMillis()) : null);
+                if (driveScreen != null) driveScreen.refresh();
+            }
             handler.postDelayed(this, 1000);
         }
     };
@@ -54,6 +62,7 @@ public class PanelActivity extends Activity {
         panel.setOnSettings(() -> startActivity(new android.content.Intent(this, SettingsActivity.class)));
         panel.setOnPlayer(this::showPicker);
         panel.setOnPrayer(this::showPrayer);
+        panel.setOnDrive(this::showDrive);
         root = new android.widget.FrameLayout(this);
         root.addView(panel, new android.widget.FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
@@ -99,6 +108,26 @@ public class PanelActivity extends Activity {
         }, 5000);
     }
 
+    private void showDrive() {
+        if (driveScreen != null) return;
+        driveScreen = new DriveScreen(this, panel.isDark(), panel.textSize(), panel.mode(), this::hideDrive);
+        root.addView(driveScreen, new android.widget.FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private void hideDrive() {
+        if (driveScreen == null) return;
+        root.removeView(driveScreen);
+        driveScreen = null;
+    }
+
+    /** For the demo only: a made-up ten-minute trip so the score screen has something to show. */
+    private static void seedDemoTrip() {
+        EcoScore e = DriveTrip.trip();
+        if (e.isTripActive()) return;
+        long t = System.currentTimeMillis() - 600_000L;
+        for (int i = 0; i < 600; i++) e.onSpeed(i < 40 ? 0f + i * 2 : (i > 560 ? 20f : 62f + (float) Math.sin(i / 20.0) * 14f), t + i * 1000L);
+    }
+
     private void showPrayer() {
         if (prayerScreen != null || panel.prayer() == null) return;
         prayerScreen = new PrayerScreen(this, panel.isDark(), panel.textSize(), panel.mode(), panel.prayer(), panel.weather(), this::hidePrayer);
@@ -119,6 +148,7 @@ public class PanelActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (driveScreen != null) { hideDrive(); return; }
         if (prayerScreen != null) { hidePrayer(); return; }
         if (picker != null) { if (!picker.handleBack()) hidePicker(); return; }
         super.onBackPressed();
@@ -136,7 +166,10 @@ public class PanelActivity extends Activity {
         applyStyle(getResources().getConfiguration());
         handler.post(tick);
         if (!demo) BubbleService.apply(this);
+        panel.setScoreEnabled(Settings.of(this).driveScore());
         if (demo) {
+            seedDemoTrip();
+            panel.showScore(DriveTrip.trip().calculate(System.currentTimeMillis()));
             panel.showData(demoPrayer(), demoWeather(), false, false);
             // --ez idle true shows the nothing-playing screen (the prayer table) instead of a song
             if (getIntent().getBooleanExtra("idle", false)) panel.showNowPlaying(NowPlaying.idle()); else handler.post(demoStep);
@@ -154,6 +187,10 @@ public class PanelActivity extends Activity {
         follower.start();
         controller.start();
         scheduleAutoPlay();
+        if (Settings.of(this).driveScore()) {
+            speed = new SpeedFollower(this, kmh -> DriveTrip.trip().onSpeed(kmh, System.currentTimeMillis()));
+            speed.start();
+        }
         if (getIntent().getBooleanExtra(EXTRA_BESIDE, false)) {
             getIntent().removeExtra(EXTRA_BESIDE);
             handler.postDelayed(() -> panel.openMaps(), 800);
@@ -167,6 +204,8 @@ public class PanelActivity extends Activity {
         handler.removeCallbacks(demoStep);
         hidePicker();
         hidePrayer();
+        hideDrive();
+        if (speed != null) { speed.stop(); speed = null; }
         if (follower != null) { follower.stop(); follower = null; }
         if (controller != null) { controller.stop(); controller = null; }
     }

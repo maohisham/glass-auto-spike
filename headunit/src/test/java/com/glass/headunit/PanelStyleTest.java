@@ -35,4 +35,14 @@ public class PanelStyleTest {
         assertEquals(480, PanelStyle.headerMaxPx(800));
         assertEquals(144, PanelStyle.headerMaxPx(240));
     }
+
+    @Test
+    public void scoreColoursGoGreenYellowRed() {
+        assertEquals(0xFF66DD88, PanelStyle.scoreColor(75));
+        assertEquals(0xFF66DD88, PanelStyle.scoreColor(98));
+        assertEquals(0xFFFFCC44, PanelStyle.scoreColor(60));
+        assertEquals(0xFFFFCC44, PanelStyle.scoreColor(74));
+        assertEquals(0xFFFF6655, PanelStyle.scoreColor(59));
+        assertEquals(0xFFFF6655, PanelStyle.scoreColor(0));
+    }
 }

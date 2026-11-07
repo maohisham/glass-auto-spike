@@ -15,9 +15,13 @@ final class BarView extends View {
     private final Paint track = new Paint(Paint.ANTI_ALIAS_FLAG), fillP = new Paint(Paint.ANTI_ALIAS_FLAG), knobP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF r = new RectF();
     private float fraction;
+    private final int solid;   // 0 = the accent gradient
 
-    BarView(Context ctx, boolean dark, boolean knob) {
+    BarView(Context ctx, boolean dark, boolean knob) { this(ctx, dark, knob, 0); }
+
+    BarView(Context ctx, boolean dark, boolean knob, int solidColor) {
         super(ctx);
+        this.solid = solidColor;
         this.dark = dark;
         this.knob = knob;
         track.setColor(dark ? 0x30FFFFFF : 0x2E0C1626);
@@ -44,7 +48,8 @@ final class BarView extends View {
         c.drawRoundRect(r, rad, rad, track);
         float end = pad + (w - 2 * pad) * fraction;
         if (end > pad + 1) {
-            fillP.setShader(new LinearGradient(pad, 0, w - pad, 0, PanelStyle.accent(dark), dark ? 0xFF7FF3CF : 0xFF3FD1A1, Shader.TileMode.CLAMP));
+            if (solid != 0) { fillP.setShader(null); fillP.setColor(solid); }
+            else fillP.setShader(new LinearGradient(pad, 0, w - pad, 0, PanelStyle.accent(dark), dark ? 0xFF7FF3CF : 0xFF3FD1A1, Shader.TileMode.CLAMP));
             r.set(pad, top, Math.max(end, pad + h), top + h);
             c.drawRoundRect(r, rad, rad, fillP);
         }

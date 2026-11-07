@@ -25,4 +25,7 @@ final class PanelStyle {
 
     /** The most of the panel's height the controls block may take; the rest is kept for the lyrics. */
     static int headerMaxPx(int heightPx) { return Math.round(heightPx * 0.6f); }
+
+    /** The driving score's colour: green from 75, yellow from 60, red below. */
+    static int scoreColor(int score) { return score >= 75 ? 0xFF66DD88 : score >= 60 ? 0xFFFFCC44 : 0xFFFF6655; }
 }

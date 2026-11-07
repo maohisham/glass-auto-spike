@@ -34,7 +34,10 @@ final class PanelView extends LinearLayout {
     private int textSize = 1;
     private boolean dark = true;
     private Controls controls;
-    private Runnable onPlayer, onSettings, onPrayer;
+    private Runnable onPlayer, onSettings, onPrayer, onDrive;
+    private boolean scoreEnabled = true;
+    private EcoScore.Stats score;
+    private TextView scoreChip;
 
     private Prayer.Data prayer;
     private Weather.Data weather;
@@ -69,6 +72,20 @@ final class PanelView extends LinearLayout {
     void setOnPlayer(Runnable r) { onPlayer = r; build(); }
     void setOnSettings(Runnable r) { onSettings = r; build(); }
     void setOnPrayer(Runnable r) { onPrayer = r; }
+    void setOnDrive(Runnable r) { onDrive = r; }
+
+    /** Shows or hides the driving score chip (the setting). */
+    void setScoreEnabled(boolean on) {
+        if (on == scoreEnabled) return;
+        scoreEnabled = on;
+        build();
+    }
+
+    /** The latest score, or null when there is no trip yet. */
+    void showScore(EcoScore.Stats s) {
+        score = s;
+        bindScore();
+    }
 
     /** Rebuilds only when something that changes the views changed. */
     void setStyle(PanelMode m, int textSize, boolean dark) {
@@ -169,6 +186,17 @@ final class PanelView extends LinearLayout {
         if (onSettings != null) { topRow.addView(icon(Icon.SETTINGS, "Settings", 44, IconView.Style.NORMAL, () -> onSettings.run()), gapped(firstIcon ? 0 : 12)); firstIcon = false; }
         if (mapsInstalled()) { topRow.addView(icon(Icon.MAPS, "Open Maps", 44, IconView.Style.NORMAL, this::openMaps), gapped(firstIcon ? 0 : 12)); }
         topRow.addView(new View(getContext()), new LayoutParams(0, 1, 1f));
+        scoreChip = null;
+        if (scoreEnabled) {
+            scoreChip = text(16, true, dim);
+            scoreChip.setGravity(Gravity.CENTER);
+            scoreChip.setPadding(dp(16), dp(10), dp(16), dp(10));
+            scoreChip.setBackground(Glass.button(getContext(), dark, false, false, 22));
+            scoreChip.setClickable(true);
+            scoreChip.setContentDescription("Open the driving score");
+            scoreChip.setOnClickListener(v -> { if (onDrive != null) onDrive.run(); });
+            topRow.addView(scoreChip);
+        }
         topRow.setVisibility(topRow.getChildCount() <= 1 ? GONE : VISIBLE);
         headerBlock.addView(topRow);
 
@@ -285,6 +313,18 @@ final class PanelView extends LinearLayout {
         bindBanners();
         bindNow();
         bindLyricsArea();
+        bindScore();
+    }
+
+    private void bindScore() {
+        if (scoreChip == null) return;
+        if (score == null || score.grade.isEmpty()) {
+            scoreChip.setText("Score  --");
+            scoreChip.setTextColor(PanelStyle.dim(dark));
+        } else {
+            scoreChip.setText("Score  " + score.score);
+            scoreChip.setTextColor(PanelStyle.scoreColor(score.score));
+        }
     }
 
     private View idleScroll() { return (View) idleBox.getParent(); }
