@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- The optional floating player bubble; the user grants this by hand in Settings. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Lets the panel see the real players and their media browser services. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.browse.MediaBrowserService" />
+        </intent>
+        <package android:name="app.morphe.android.apps.youtube.music" />
+        <package android:name="app.revanced.android.apps.youtube.music" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.ilv.vradio" />
+        <package android:name="com.google.android.apps.maps" />
+    </queries>
+
+    <application
+        android:name=".GlassApp"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:allowBackup="false"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".PanelActivity"
+            android:exported="true"
+            android:resizeableActivity="true"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|density|uiMode"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="Glass Panel settings" />
+
+        <activity
+            android:name=".ZonePickerActivity"
+            android:exported="false"
+            android:label="Prayer zone" />
+
+        <activity
+            android:name=".LogActivity"
+            android:exported="true"
+            android:label="Glass Panel log" />
+
+        <activity
+            android:name=".SplitProbeActivity"
+            android:exported="true"
+            android:label="Glass Panel split-screen test" />
+
+        <!-- The window helper: presses split-screen and drags the divider. The user turns it on by hand in Accessibility settings. -->
+        <service
+            android:name=".SplitHelperService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/split_helper" />
+        </service>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name=".BubbleService"
+            android:exported="false" />
+
+        <!-- Being an enabled listener is what lets the panel read other apps' media sessions. -->
+        <service
+            android:name=".MediaListener"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

@@ -1,0 +1,55 @@
+plugins {
+    id 'com.android.application'
+}
+
+def keyProps = new Properties()
+def keyFile = file('keystore/keystore.properties')
+if (keyFile.exists()) keyFile.withInputStream { keyProps.load(it) }
+
+android {
+    namespace 'com.glass.headunit'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.glass.headunit'
+        minSdk 31
+        targetSdk 33
+        versionCode 1
+        versionName '0.1-headunit'
+    }
+
+    signingConfigs {
+        headunit {
+            if (keyFile.exists()) {
+                storeFile file(keyProps['storeFile'])
+                storePassword keyProps['storePassword']
+                keyAlias keyProps['keyAlias']
+                keyPassword keyProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        debug { if (keyFile.exists()) signingConfig signingConfigs.headunit }
+        release {
+            minifyEnabled false
+            if (keyFile.exists()) signingConfig signingConfigs.headunit
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    implementation 'androidx.media:media:1.7.0'
+    implementation 'androidx.core:core:1.12.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20231013'
+}

@@ -26,59 +26,112 @@ final class CardArt {
 
     private CardArt() { }
 
-    /** The player's cover, centre-cropped to a square so the car does not stretch it. */
-    static Bitmap cover(int size, Bitmap src, String song, String artist) {
-        // a hardware bitmap cannot be drawn onto a software canvas, so copy it first
-        if (src.getConfig() == Bitmap.Config.HARDWARE) {
-            Bitmap soft = src.copy(Bitmap.Config.ARGB_8888, false);
-            if (soft != null) src = soft;
-        }
+    /**
+     * The player's cover as the card picture. Without lyrics it is the cover cropped square with the song and artist
+     * across the top. With lyric lines (the narrow card shows a large picture and leaves its top half clear of the
+     * car's own text) the cover becomes a dimmed, blurred background and the lines are drawn on it: one before the
+     * current line, the current line in bold, and the next few. cur is the index of the current line in lyric, or -1.
+     */
+    static Bitmap cover(int size, Bitmap src, String song, String artist, List<String> lyric, int cur) {
+        src = soft(src);
         Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(bmp);
-        int w = src.getWidth(), h = src.getHeight(), side = Math.min(w, h);
-        Rect from = new Rect((w - side) / 2, (h - side) / 2, (w + side) / 2, (h + side) / 2);
-        c.drawBitmap(src, from, new Rect(0, 0, size, size), new Paint(Paint.FILTER_BITMAP_FLAG));
-        songStrip(c, size, song, artist);
+        Paint smooth = new Paint(Paint.FILTER_BITMAP_FLAG);
+        if (lyric == null || lyric.isEmpty()) {
+            int w = src.getWidth(), h = src.getHeight(), side = Math.min(w, h);
+            Rect from = new Rect((w - side) / 2, (h - side) / 2, (w + side) / 2, (h + side) / 2);
+            c.drawBitmap(src, from, new Rect(0, 0, size, size), smooth);
+            songStrip(c, size, song, artist, false);
+            return bmp;
+        }
+        // a tiny copy stretched back up is a cheap blur
+        Bitmap tiny = Bitmap.createScaledBitmap(src, 32, 32, true);
+        c.drawBitmap(tiny, null, new Rect(0, 0, size, size), smooth);
+        c.drawColor(0xB3000000);
+        float y = songStrip(c, size, song, artist, true);
+        lyricBlock(c, size, lyric, cur, y + 14 * (size / 640f));
         return bmp;
     }
 
-    /** Shown when the player gives no cover: the card's green with a large note. */
-    static Bitmap placeholder(int size, String song, String artist) {
+    /** Shown when the player gives no cover: the card's green, with the lyrics on it when there are some. */
+    static Bitmap placeholder(int size, String song, String artist, List<String> lyric, int cur) {
         Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(bmp);
         c.drawColor(BG);
-        TextPaint p = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(GREEN);
-        p.setTextSize(size * 0.4f);
-        p.setTextAlign(Paint.Align.CENTER);
-        c.drawText("♪", size / 2f, size / 2f + size * 0.14f, p);
-        songStrip(c, size, song, artist);
+        if (lyric == null || lyric.isEmpty()) {
+            TextPaint p = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            p.setColor(GREEN);
+            p.setTextSize(size * 0.4f);
+            p.setTextAlign(Paint.Align.CENTER);
+            c.drawText("♪", size / 2f, size / 2f + size * 0.14f, p);
+            songStrip(c, size, song, artist, false);
+            return bmp;
+        }
+        float y = songStrip(c, size, song, artist, true);
+        lyricBlock(c, size, lyric, cur, y + 14 * (size / 640f));
         return bmp;
     }
 
+    /** A hardware bitmap cannot be drawn onto a software canvas, so copy it first. */
+    private static Bitmap soft(Bitmap src) {
+        if (src.getConfig() == Bitmap.Config.HARDWARE) {
+            Bitmap copy = src.copy(Bitmap.Config.ARGB_8888, false);
+            if (copy != null) return copy;
+        }
+        return src;
+    }
+
     /**
-     * Song and artist across the top of the picture, on a dark fade so any cover stays readable. The car draws its
-     * back arrow and app icon at the top-left and crops about an eighth off each side in the narrow card, so the
-     * text starts below the icons and inside the side crop. The car's own text covers the lower half.
+     * Song and artist across the top of the picture. The car draws its back arrow and app icon at the top-left and
+     * crops about an eighth off each side in the narrow card, so the text starts below the icons and inside the side
+     * crop. Returns the y just below the text. The compact form leaves room for lyric lines under it.
      */
-    private static void songStrip(Canvas c, int size, String song, String artist) {
-        if ((song == null || song.isEmpty()) && (artist == null || artist.isEmpty())) return;
+    private static float songStrip(Canvas c, int size, String song, String artist, boolean compact) {
         float s = size / 640f;
-        Paint fade = new Paint();
-        fade.setShader(new LinearGradient(0, 0, 0, 210 * s, 0xB8000000, 0x00000000, Shader.TileMode.CLAMP));
-        c.drawRect(0, 0, size, 210 * s, fade);
+        float y = 88 * s;
+        if ((song == null || song.isEmpty()) && (artist == null || artist.isEmpty())) return y;
+        if (!compact) {
+            Paint fade = new Paint();
+            fade.setShader(new LinearGradient(0, 0, 0, 210 * s, 0xB8000000, 0x00000000, Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, size, 210 * s, fade);
+        }
         TextPaint p = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         float x = 96 * s, w = size - 192 * s;
-        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-        p.setColor(WHITE);
-        p.setTextSize(40 * s);
-        float y = 88 * s;
-        if (song != null && !song.isEmpty()) y = drawWrapped(c, song, p, x, y, w, 1);
+        if (song != null && !song.isEmpty()) {
+            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+            p.setColor(WHITE);
+            p.setTextSize((compact ? 28 : 40) * s);
+            y = drawWrapped(c, song, p, x, y, w, 1);
+        }
         if (artist != null && !artist.isEmpty()) {
             p.setTypeface(Typeface.DEFAULT);
             p.setColor(DIM);
-            p.setTextSize(30 * s);
-            drawWrapped(c, artist, p, x, y + 2 * s, w, 1);
+            p.setTextSize((compact ? 22 : 30) * s);
+            y = drawWrapped(c, artist, p, x, y + 2 * s, w, 1);
+        }
+        return y;
+    }
+
+    /** Lyric lines from top down to y 340 (below that the car draws its own text). The current line is bold and bright. */
+    private static void lyricBlock(Canvas c, int size, List<String> lines, int cur, float top) {
+        float s = size / 640f;
+        float x = 96 * s, w = 448 * s, bottom = 340 * s, y = top;
+        TextPaint p = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        for (int i = 0; i < lines.size(); i++) {
+            boolean now = i == cur;
+            p.setTypeface(now ? Typeface.create(Typeface.DEFAULT, Typeface.BOLD) : Typeface.DEFAULT);
+            p.setTextSize((now ? 27 : 23) * s);
+            p.setColor(now ? WHITE : 0xB3FFFFFF);
+            String t = lines.get(i);
+            StaticLayout l = StaticLayout.Builder.obtain(t, 0, t.length(), p, (int) w)
+                    .setMaxLines(now ? 2 : 1).setEllipsize(TextUtils.TruncateAt.END)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL).build();
+            if (y + l.getHeight() > bottom) break;
+            c.save();
+            c.translate(x, y);
+            l.draw(c);
+            c.restore();
+            y += l.getHeight() + 5 * s;
         }
     }
 

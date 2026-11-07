@@ -79,6 +79,7 @@ public class MainActivity extends Activity {
             handler.postDelayed(() -> PrayerAlert.post(app, "Zohor", "1:10 PM", "Petaling Jaya"), 20_000);
         }));
         root.addView(button("Preview the card picture (sample data)", v -> showPreview()));
+        root.addView(button("Test the three lyric sources (Perfect, Ed Sheeran)", v -> runLyricsTest()));
         root.addView(button("Allow notification access (needed to mirror players)", v -> startActivity(new Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))));
         root.addView(button("Prayer alert as message, in 20 s", v -> alertLater(true)));
         root.addView(button("Prayer alert as plain notification, in 20 s", v -> alertLater(false)));
@@ -91,6 +92,50 @@ public class MainActivity extends Activity {
         sv.addView(logView);
         root.addView(sv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(root);
+        if (getIntent().getBooleanExtra("lyricstest", false)) runLyricsTest();
+        if (getIntent().getBooleanExtra("coverpreview", false)) saveCoverPreview();
+    }
+
+    /** Draws the card picture from a made-up cover and saves it as PNGs, so the layout can be checked without the car. */
+    private void saveCoverPreview() {
+        Bitmap sample = Bitmap.createBitmap(640, 640, Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(sample);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setShader(new android.graphics.LinearGradient(0, 0, 0, 640, new int[]{0xFF2B1B4D, 0xFFB4476B, 0xFFF29E6B}, null, android.graphics.Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, 640, 640, p);
+        p.setShader(null);
+        p.setColor(0xFFFFD9A0);
+        c.drawCircle(320, 380, 120, p);
+        p.setColor(0xFF1A1030);
+        android.graphics.Path m = new android.graphics.Path();
+        m.moveTo(0, 470); m.lineTo(130, 340); m.lineTo(230, 440); m.lineTo(360, 300); m.lineTo(500, 450); m.lineTo(640, 360); m.lineTo(640, 640); m.lineTo(0, 640); m.close();
+        c.drawPath(m, p);
+        try {
+            save(CardArt.cover(640, sample, "Stay a while, we're parked", "Senja Sessions", java.util.Arrays.asList("Senja turun perlahan di kota", "Kita duduk, tak mahu pulang dulu", "Biar lampu jalan jadi saksi", "Stay a while, we're parked here tonight", "Dengar radio, dengar hujan"), 1), "cover_card.png");
+            save(CardArt.cover(640, sample, "Stay a while, we're parked", "Senja Sessions", null, -1), "cover_plain.png");
+            save(CardArt.placeholder(640, "Stay a while, we're parked", "Senja Sessions", java.util.Arrays.asList("Senja turun perlahan di kota", "Kita duduk, tak mahu pulang dulu", "Biar lampu jalan jadi saksi", "Stay a while, we're parked here tonight", "Dengar radio, dengar hujan"), 1), "cover_none.png");
+            Spike.log("cover preview saved");
+        } catch (Exception e) { Spike.log("cover preview failed: " + e.getMessage()); }
+    }
+
+    private void save(Bitmap b, String name) throws Exception {
+        try (java.io.FileOutputStream o = new java.io.FileOutputStream(new java.io.File(getFilesDir(), name))) {
+            b.compress(Bitmap.CompressFormat.PNG, 100, o);
+        }
+    }
+
+    /** Asks each lyric service on its own, so the log shows which ones work from this phone. */
+    private void runLyricsTest() {
+        new Thread(() -> {
+            String t = "Perfect", a = "Ed Sheeran";
+            long durS = 263;
+            Lyrics l1 = Lyrics.lrclib(t, a, durS);
+            Spike.log("test: LRCLIB -> " + (l1 == null ? "nothing" : l1.lines.size() + " lines, first '" + l1.lines.get(0) + "'"));
+            Lyrics l2 = Lyrics.netease(t, a, durS);
+            Spike.log("test: NetEase -> " + (l2 == null ? "nothing" : l2.lines.size() + " lines, first '" + l2.lines.get(0) + "'"));
+            Lyrics l3 = Lyrics.ovh(t, a, durS * 1000);
+            Spike.log("test: lyrics.ovh -> " + (l3 == null ? "nothing" : l3.lines.size() + " lines (times estimated), first '" + l3.lines.get(0) + "'"));
+        }, "lyrics-test").start();
     }
 
     @Override protected void onResume() { super.onResume(); Where.get(this); handler.post(refresh); }

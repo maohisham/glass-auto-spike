@@ -1,0 +1,57 @@
+# SDD ledger — plan: docs/superpowers/plans/2026-11-07-headunit-panel.md
+
+Spec read: docs/superpowers/specs/2026-11-07-headunit-panel-design.md (binding authority).
+
+Ruling: no git repo here, so no worktree, no commits and no sdd scripts; this file is the ledger and "Checkpoint" (tests pass + module builds) replaces commits — cost if wrong: none, nothing to revert to except file copies.
+Ruling: on-device checks (phone, Carlinkit, Eonon) are done when a device is connected; when not, the step is recorded here as "device check pending" and execution continues — cost if wrong: untested-on-device code shipped to the user's units, so these are listed in the final message.
+
+Pre-flight (shared interfaces):
+- T1→T2..T9: copied classes keep package-private signatures; T1 adds Prayer.recompute(Data,long), Weather.code, Lyrics (unchanged). Consistent.
+- T2→T5,T6,T8,T9: Settings getters/setters + SplitMath.effective/snap + PanelMode.forWidthDp. T8 adds bubbleX/bubbleY/setBubble/resetBubble to Settings (T2 does not define them) — T8 owns that addition.
+- T3→T5: LocationFollower(Context, Listener{onMoved}), Cache wrappers. Consistent.
+- T4→T5,T7: NowPlaying, MediaFollower. T4 adds Lyrics.nextNonEmpty used by T5.
+- T6 adds Zones.all() (consumed by T6 only; T5 uses Zones.byCode).
+- T7→T8: PlayerPicker reused by BubbleService.
+- T2/T9: SplitMath.snap fed by OFFERED tables measured in T9.
+
+Task 1: complete (tests: :headunit:testDebugUnitTest → 3/3 pass; assembleDebug OK, signed with fixed key). Device check pending: LogActivity on phone (phone not connected). Ruling: signing password generated and stored in headunit/keystore/keystore.properties (chmod 600) with README telling the user to back both up — plan said the user stores it; unattended execution needs it in the build — cost if wrong: user must back up the key.
+Task 2: complete (tests: :headunit:testDebugUnitTest → 9/9 pass)
+Task 3: complete (tests: :headunit:testDebugUnitTest → 19/19 pass). Ruling: extracted RefreshGate (pure) from LocationFollower so Review Focus item 3 (jitter near 5 km) has a unit test — plan listed MoveTrigger only; cost if wrong: one extra small class. Device check pending: LocationFollower on a device.
+Task 4: complete (tests: :headunit:testDebugUnitTest → 22/22 pass). Device check pending: MediaFollower with a real player. Ruling: Proxy copy logs "notification access OFF" once instead of every 2 s — otherwise it floods the 80-line on-screen log (the Eonon has no adb) — cost if wrong: a repeat of the message is not shown.
+Ruling (Task 5): panel views are built in Java code (one path, a `compact` flag) instead of the plan's two XML layouts panel_regular.xml/panel_compact.xml — avoids duplicating ids and two layouts drifting apart — cost if wrong: a later redesign edits Java instead of XML.
+Ruling (Task 5): pure helpers PanelStyle (text scale, dark-or-light) and Lyrics.lastNonEmptyAtOrBefore get unit tests so Review Focus item 1 (instrumental gaps, line -1) and item 5 (largest text size) are covered — cost if wrong: two tiny helpers.
+Task 5: complete in code (tests: :headunit:testDebugUnitTest → 26/26 pass; assembleDebug OK, new classes confirmed in classes3.dex). DEVICE CHECKS PENDING (phone not connected): demo screenshots, real-player data, offline behaviour, banner buttons — plan Task 5 Steps 3–4 not run. Ruling: transport buttons use words (Prev/Play/Pause/Next) in one row and Player/Settings in a second row instead of symbols — media glyphs may be missing from a head unit's fonts and the Eonon can't be checked first — cost if wrong: slightly less polished look.
+Task 6: complete in code (tests: :headunit:testDebugUnitTest → 27/27 pass; assembleDebug OK). DEVICE CHECKS PENDING: each setting visibly applying, slider note at narrow wm size, persistence. Ruling: the "Reset position" button for the bubble is added in Task 8 with the bubble position keys, not Task 6 — the keys do not exist until then (plan's Task 8 already owns Settings.bubbleX/bubbleY).
+Ruling (Task 7): the picker lists every installed media app (Proxy.players) with the known five (Spotify, YouTube Music, Bitchord by label, VRadio) sorted first, instead of a fixed five — the Bitchord package and the unit's local-files player package are not known, and a fixed list would hide them — cost if wrong: a few extra apps in the list.
+Ruling (Task 7): Browse is offered after a player passes a probe that the user starts with a "Check browse" button, with the result remembered, instead of probing every player when the picker opens — connecting to a media browser service launches that app, and doing it for all players on every open would waste heat/battery — cost if wrong: one extra tap per player the first time.
+Task 7: complete in code (tests: :headunit:testDebugUnitTest → 30/30 pass; assembleDebug OK). DEVICE CHECKS PENDING: which installed players accept BrowseProbe (log shows connected vs REFUSED), switching two players, search-and-play, Recent list.
+Ruling (Task 8): BubbleService is a plain started service with no foreground notification — a notification adds permission prompts and noise on the units, and PanelActivity restarts the service on every start — cost if wrong: Android may stop the bubble when the panel is not open for a long time.
+Task 8: complete in code (tests: :headunit:testDebugUnitTest → 34/34 pass; assembleDebug OK). DEVICE CHECKS PENDING: bubble shown over another app, drag + remembered place, tap opens picker on the panel's side, permission revoked behaviour.
+Ruling (Task 9): no OFFERED_CARLINKIT/OFFERED_EONON position tables — Android's divider already snaps to the unit's own targets when a drag is released, so the helper drags to the wanted position and the system picks the nearest offered one; the probe screen logs where it actually ended up per target. SplitMath.snap stays (tested, used only by the probe's log of expected snap) — cost if wrong: a unit that does not snap could end at an odd ratio, which the probe log would show.
+Task 9: complete in code (tests: :headunit:testDebugUnitTest → 39/39 pass; assembleDebug OK). DEVICE CHECKS PENDING ON BOTH UNITS: split toggle, Maps beside the panel, divider drag + the positions the divider reaches (probe screen), reboot auto-start, Android 12 background-launch behaviour. Not verifiable on the phone-sized setup the plan assumed because the phone is not connected.
+Task 10: complete in code (tests: :headunit:testDebugUnitTest → 39/39 pass; assembleRelease OK; apksigner verify: v2 true, 1 signer; APK copied to docs/GlassHeadUnit-0.1-headunit.apk; INSTALL.md written). DEVICE STEPS NOT RUN: adb install on the Carlinkit, Drive install on the Eonon, real-car checks, 30-minute heat check — no device connected. Ruling: the APK was NOT uploaded to Google Drive — publishing a file to an external service is outward-facing and the user said they would copy it themselves — cost if wrong: one manual copy.
+Final review: fresh reviewer (Fable) — 16 findings, no Critical.
+Final: Ruling: re-graded #6 (retry every 60 s not 120 s) and #7 (location dropped while a fetch is in flight) and #14b (non-scrollable panel clips controls on a short screen; I saw this on the phone) to Important by effect — #6 breaks an explicit spec constraint, #7 is the headline "follows the car" feature, #14b makes controls unreachable — cost if wrong: three extra small fixes.
+Final: Ruling: fixes for #2 (Open Maps button) and #3 (safe Settings launches) have no failing unit test — they are Android UI wiring with no logic to assert without Robolectric; verified by compile and, for #2/#14b, a phone screenshot — cost if wrong: a regression there is not caught by the suite.
+Final: minor (deferred): #8 each onStart builds a new PanelController so returning from Settings refetches everything
+Final: minor (deferred): #9 PlayerSwitcher can follow() on a stopped MediaFollower within 15 s after the picker closes
+Final: minor (deferred): #10 per-tick work (snapshot/label lookups every 500 ms, identical setText each second, banner rebuild every 5 s, lyrics threads never cancelled)
+Final: minor (deferred): #11 LRC starting with an empty line leaves the header dim and no line lit until the first real line
+Final: minor (deferred): #12 first scroll after rebuildLines runs before layout
+Final: minor (deferred): #13 FLAG_ACTIVITY_MULTIPLE_TASK on adjacent launch can create a second Maps task (do not press "Run the whole layout now" while navigating)
+Final: minor (deferred): #14a SplitMath uses screen width even in portrait where the height is divided
+Final: minor (deferred): #15 (a) Settings never says a unit cannot hold a custom ratio, (b) emoji/symbols (weather, ● ✔ ✘) may render as boxes on a unit font, (c) extra settings rows beyond the spec list
+Final: minor (deferred): #16 location permission requested after passive listening started; effect only until the next onStart or 10 minutes
+Final: fixed #1 (0,0 fix drove refresh) — FixChoiceTest RED→GREEN, suite 58/58
+Final: fixed #4 (log lost on crash/kill; boot receiver delayed work) — SpikeLogTest RED→GREEN; GlassApp crash hook; BootReceiver now does no delayed work (helper.startLayoutAfter), suite 58/58
+Final: fixed #5 (timeout treated as permanent refusal) — BrowseStatusTest RED→GREEN, picker offers "Check again", suite 58/58
+Final: fixed #6 (retry every 60 s) — RefreshPolicyTest RED→GREEN, suite 58/58
+Final: fixed #7 (location dropped during a fetch) — FetchQueueTest RED→GREEN, suite 58/58
+Final: fixed #14b (controls clipped on a short screen) — PanelStyleTest.headerBlockNeverTakesMoreThanSixtyPercentOfTheHeight RED→GREEN + MaxHeightScrollView; phone screenshot at 1216x1000 shows all buttons, suite 58/58
+Final: fixed #2 (Open Maps button) and #3 (safe Settings launches via Intents.safeStart) — no unit test (UI wiring, see ruling); phone screenshot shows the button; compile OK
+Final: fixed follow-up found on the phone (same position fetched twice at start, from my #7 fix) — FetchQueueTest.aSecondRequestForTheSameSpotIsNotQueued RED→GREEN, suite 59/59; phone log shows 1 fetch
+Final: suite 59/59 pass; assembleDebug and assembleRelease OK; release APK signature verified; installed on the phone's personal profile only (--user 0); work-profile copy removed.
+Phone checks DONE: demo layout, short-screen layout, real YouTube Music following, real prayer zone SGR01 + weather Sepang, on-disk log, no crash.
+Device checks STILL PENDING: Carlinkit and Eonon (split toggle, Maps beside panel, divider positions, boot auto-start, browse permissions per player, bubble overlay, 30-min heat check). Phone check not done: notification-access-off banner flow, offline mode, bubble.
+Tablet (Xiaomi Pad Mini, Android 16, user 0 only) results 2026-11-07: install needed "Install via USB" + approving the prompt; panel idle state, real prayer/weather (SGR01, Sepang) and notification access OK; GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN refused 4/4 even with the helper on; divider drag works and snaps to ~33/50/67% (noisy first run); VRadio browse refused. A clean divider re-run was NOT achieved (screen never split by hand). Helper switches off after each reinstall on this ROM. Probe settle wait raised to 1500 ms and sweeps made single-run (build 59/59 tests).
+Tablet 2026-11-07: panel's Open Maps (FLAG_ACTIVITY_LAUNCH_ADJACENT) creates the split by itself; helper then drags the divider; user confirmed it ends at the set ratio after a brief 50:50. Auto-start now tries panel-opens-Maps first, toggle only as fallback (61/61 tests).

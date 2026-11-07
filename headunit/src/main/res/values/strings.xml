@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Glass Panel</string>
+    <string name="helper_description">Turns on split-screen when the unit starts, opens Google Maps beside the Glass Panel, and sets the split position. It reads nothing from other apps.</string>
+</resources>

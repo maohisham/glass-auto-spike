@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 rootProject.name = "glass-auto-spike"
 include ':app'
 include ':prayer'
+include ':prayerlive'
+include ':headunit'

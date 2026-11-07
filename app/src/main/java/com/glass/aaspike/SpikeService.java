@@ -94,6 +94,13 @@ public class SpikeService extends MediaBrowserServiceCompat {
                 }
             }
             @Override public void onSeekTo(long pos) { if (target != null) target.getTransportControls().seekTo(pos); }
+            /** Tapping a line in the lyrics list jumps the song to that line. */
+            @Override public void onSkipToQueueItem(long id) {
+                Spike.log("lyrics list: jump to line " + id);
+                if (target != null && lyrics != null && id >= 0 && id < lyrics.times.size()) {
+                    target.getTransportControls().seekTo(lyrics.times.get((int) id));
+                }
+            }
             @Override public void onPlayFromSearch(String q, Bundle extras) {
                 Spike.log("voice: play '" + q + "'");
                 if (target != null) target.getTransportControls().playFromSearch(q, extras);
@@ -426,7 +433,7 @@ public class SpikeService extends MediaBrowserServiceCompat {
             | PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_SKIP_TO_NEXT
             | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_PLAY_FROM_SEARCH
             | PlaybackStateCompat.ACTION_SEEK_TO | PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE
-            | PlaybackStateCompat.ACTION_SET_REPEAT_MODE;
+            | PlaybackStateCompat.ACTION_SET_REPEAT_MODE | PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM;
 
     private void publishState() {
         PlaybackState src = target == null ? null : target.getPlaybackState();
@@ -434,6 +441,7 @@ public class SpikeService extends MediaBrowserServiceCompat {
             // built fresh (not copied) so the update time is now, which keeps this session the most recent one
             session.setPlaybackState(new PlaybackStateCompat.Builder()
                     .setActions(ACTIONS)
+                    .setActiveQueueItemId(activeQueueId)
                     .setState(src.getState(), position(), src.getPlaybackSpeed())
                     .build());
             return;
@@ -477,6 +485,7 @@ public class SpikeService extends MediaBrowserServiceCompat {
             bottom = next.size() > 1 ? android.text.TextUtils.join("\n", next.subList(1, next.size())) : "";
         }
 
+        computeView();
         Bitmap art = cover(m);
         MediaMetadataCompat.Builder b = new MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, "glass-auto")
@@ -488,12 +497,78 @@ public class SpikeService extends MediaBrowserServiceCompat {
         long dur = m == null ? 0 : m.getLong(MediaMetadata.METADATA_KEY_DURATION);
         if (dur > 0) b.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, dur);
         session.setMetadata(b.build());
+        updateLyricQueue();
         if (!loggedPictureSize) {
             // Android may shrink metadata pictures; log what the system actually kept
             MediaMetadataCompat kept = session.getController().getMetadata();
             Bitmap k = kept == null ? null : kept.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART);
             if (k != null) { loggedPictureSize = true; Spike.log("picture: drew " + art.getWidth() + " px, system kept " + k.getWidth() + " px"); }
         }
+    }
+
+    // ---- lyrics on the picture and as a list ----
+
+    private List<String> viewLines;   // lines drawn on the card picture: one before the current line, it, and the next few
+    private int viewCur = -1;
+    private Lyrics queuedLyrics;      // the lyrics currently loaded into the session's queue
+    private long activeQueueId = MediaSessionCompat.QueueItem.UNKNOWN_ID;
+
+    private String viewKey() {
+        return viewLines == null ? "" : android.text.TextUtils.join("\n", viewLines) + "#" + viewCur;
+    }
+
+    /** Picks the lines for the picture: the one before the current line, the current line, and the three after it. */
+    private void computeView() {
+        viewLines = null;
+        viewCur = -1;
+        if (lyrics == null) return;
+        List<String> ne = new ArrayList<>();
+        int k = -1;
+        for (int i = 0; i < lyrics.lines.size(); i++) {
+            String l = lyrics.lines.get(i);
+            if (l.isEmpty()) continue; // instrumental gap
+            ne.add(l);
+            if (i <= shownLine) k = ne.size() - 1;
+        }
+        if (ne.isEmpty()) return;
+        int from = k < 0 ? 0 : Math.max(0, k - 1);
+        int to = Math.min(ne.size(), (k < 0 ? 0 : k) + 4);
+        viewLines = new ArrayList<>(ne.subList(from, to));
+        viewCur = k < 0 ? -1 : k - from;
+    }
+
+    /**
+     * The lyrics as the session's queue, so the car's queue list in the now-playing view shows every line with the
+     * current one highlighted. The queue id of a line is its index in the lyrics, which is also what a tap seeks to.
+     */
+    private void updateLyricQueue() {
+        if (lyrics == null) {
+            if (queuedLyrics != null) {
+                session.setQueue(null);
+                queuedLyrics = null;
+                activeQueueId = MediaSessionCompat.QueueItem.UNKNOWN_ID;
+                publishState();
+            }
+            return;
+        }
+        if (lyrics != queuedLyrics) {
+            List<MediaSessionCompat.QueueItem> items = new ArrayList<>();
+            for (int i = 0; i < lyrics.lines.size(); i++) {
+                String l = lyrics.lines.get(i);
+                if (l.isEmpty()) continue;
+                items.add(new MediaSessionCompat.QueueItem(
+                        new MediaDescriptionCompat.Builder().setMediaId("lyric:" + i).setTitle(l).build(), i));
+            }
+            session.setQueue(items);
+            session.setQueueTitle("Lyrics");
+            queuedLyrics = lyrics;
+            activeQueueId = MediaSessionCompat.QueueItem.UNKNOWN_ID;
+        }
+        long id = MediaSessionCompat.QueueItem.UNKNOWN_ID;
+        for (int i = Math.min(shownLine, lyrics.lines.size() - 1); i >= 0; i--) {
+            if (!lyrics.lines.get(i).isEmpty()) { id = i; break; }
+        }
+        if (id != activeQueueId) { activeQueueId = id; publishState(); }
     }
 
     // ---- album cover ----
@@ -525,12 +600,13 @@ public class SpikeService extends MediaBrowserServiceCompat {
             }
         }
         if (src == null) return placeholder(song, by);
-        String key = song + "|" + by;
+        String key = song + "|" + by + "|" + viewKey();
         if (src != coverSrc || coverArt == null || !key.equals(coverKey)) {
+            boolean newSrc = src != coverSrc;
             coverSrc = src;
             coverKey = key;
-            coverArt = CardArt.cover(640, src, song, by);
-            Spike.log("cover: using the player's picture, " + src.getWidth() + "x" + src.getHeight());
+            coverArt = CardArt.cover(640, src, song, by, viewLines, viewCur);
+            if (newSrc) Spike.log("cover: using the player's picture, " + src.getWidth() + "x" + src.getHeight());
         }
         return coverArt;
     }
@@ -539,9 +615,9 @@ public class SpikeService extends MediaBrowserServiceCompat {
     private String placeholderKey = "", coverKey = "";
 
     private Bitmap placeholder(String song, String artist) {
-        String key = song + "|" + artist;
+        String key = song + "|" + artist + "|" + viewKey();
         if (placeholderArt == null || !key.equals(placeholderKey)) {
-            placeholderArt = CardArt.placeholder(640, song, artist);
+            placeholderArt = CardArt.placeholder(640, song, artist, viewLines, viewCur);
             placeholderKey = key;
         }
         return placeholderArt;
