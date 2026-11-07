@@ -202,6 +202,7 @@ public class PanelActivity extends Activity {
             @Override public void next() { follower.next(); }
             @Override public void previous() { follower.previous(); }
             @Override public void toggleShuffle() { follower.toggleShuffle(); }
+            @Override public void toggleRepeat() { follower.toggleRepeat(); }
         });
         follower.start();
         controller.start();
@@ -262,6 +263,6 @@ public class PanelActivity extends Activity {
         l.lines.addAll(Arrays.asList(lines));
         for (int i = 0; i < lines.length; i++) l.times.add(i * 3000L);
         return new NowPlaying("demo.player", "Demo", "Stay a while, we're parked", "Senja Sessions", true,
-                line * 3000L, 36000, l, false, line, true, true, null, "");
+                line * 3000L, 36000, l, false, line, true, true, true, android.support.v4.media.session.PlaybackStateCompat.REPEAT_MODE_ALL, null, "");
     }
 }

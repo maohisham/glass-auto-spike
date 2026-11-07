@@ -73,6 +73,22 @@ final class Icons {
                 c.drawPath(p, stroke);
                 break;
             }
+            case REPEAT:
+            case REPEAT_ONE: {
+                Path p = new Path();
+                // top arrow pointing right, bottom arrow pointing left, joined by rounded corners (the usual repeat loop)
+                p.moveTo(17, 3); p.lineTo(20.5f, 6.5f); p.lineTo(17, 10);
+                p.moveTo(20.5f, 6.5f); p.lineTo(7, 6.5f); p.quadTo(3.5f, 6.5f, 3.5f, 10); p.lineTo(3.5f, 11);
+                p.moveTo(7, 21); p.lineTo(3.5f, 17.5f); p.lineTo(7, 14);
+                p.moveTo(3.5f, 17.5f); p.lineTo(17, 17.5f); p.quadTo(20.5f, 17.5f, 20.5f, 14); p.lineTo(20.5f, 13);
+                c.drawPath(p, stroke);
+                if (icon == Icon.REPEAT_ONE) {
+                    Path one = new Path();   // a small "1" in the middle of the loop
+                    one.moveTo(10.6f, 10.6f); one.lineTo(12.4f, 9.4f); one.lineTo(12.4f, 14.8f);
+                    c.drawPath(one, stroke);
+                }
+                break;
+            }
             case SHUFFLE: {
                 Path p = new Path();
                 p.moveTo(3, 7); p.lineTo(6, 7);

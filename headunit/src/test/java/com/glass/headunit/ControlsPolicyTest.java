@@ -44,4 +44,22 @@ public class ControlsPolicyTest {
         assertFalse(ControlsPolicy.showProgress(Proxy.VRADIO, 216_000));
         assertFalse(ControlsPolicy.showProgress(null, 216_000));
     }
+
+    private static final long WITH_REPEAT = PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_SET_REPEAT_MODE;
+
+    @Test
+    public void repeatShowsForAMusicPlayerThatOffersIt() {
+        assertTrue(ControlsPolicy.showRepeat("com.spotify.music", WITH_REPEAT));
+    }
+
+    @Test
+    public void repeatIsHiddenWhenThePlayerDoesNotOfferIt() {
+        assertFalse(ControlsPolicy.showRepeat("com.spotify.music", WITHOUT_SHUFFLE));
+    }
+
+    @Test
+    public void repeatIsNeverShownForVRadioOrWithNoPlayer() {
+        assertFalse(ControlsPolicy.showRepeat(Proxy.VRADIO, WITH_REPEAT));
+        assertFalse(ControlsPolicy.showRepeat(null, WITH_REPEAT));
+    }
 }

@@ -26,7 +26,7 @@ import java.util.List;
  */
 final class PanelView extends LinearLayout {
 
-    interface Controls { void play(); void pause(); void next(); void previous(); void toggleShuffle(); }
+    interface Controls { void play(); void pause(); void next(); void previous(); void toggleShuffle(); void toggleRepeat(); }
 
     private static final String MAPS = "com.google.android.apps.maps";
 
@@ -49,8 +49,8 @@ final class PanelView extends LinearLayout {
     private CoverView coverView;
     private MaxHeightScrollView headerScroll;
     private TextView weatherText, prayerText, title, artist, bigText, header, elapsedText, durationText, idleNote;
-    private IconView shuffleBtn, prevBtn, mainBtn, nextBtn;
-    private View shuffleSpacer;
+    private IconView shuffleBtn, repeatBtn, prevBtn, mainBtn, nextBtn;
+    private View leftSpacer, rightSpacer;
     private BarView mediaBar;
     private PrayerTableView idleTable;
     private TextView idleWeather;
@@ -286,12 +286,17 @@ final class PanelView extends LinearLayout {
         prevBtn = icon(Icon.PREV, "Previous", 50, IconView.Style.NORMAL, () -> { if (controls != null) controls.previous(); });
         mainBtn = icon(Icon.PLAY, "Play", 62, IconView.Style.MAIN, () -> { if (controls != null) { if (now.playing) controls.pause(); else controls.play(); } });
         nextBtn = icon(Icon.NEXT, "Next", 50, IconView.Style.NORMAL, () -> { if (controls != null) controls.next(); });
-        shuffleSpacer = new View(getContext());
+        repeatBtn = icon(Icon.REPEAT, "Repeat off", 42, IconView.Style.NORMAL, () -> { if (controls != null) controls.toggleRepeat(); });
+        // invisible spacers keep play centred when only one of shuffle and repeat is offered
+        leftSpacer = new View(getContext());
+        rightSpacer = new View(getContext());
         mediaRow.addView(shuffleBtn);
+        mediaRow.addView(leftSpacer, new LayoutParams(Glass.dp(getContext(), iconDp(42)), 1));
         mediaRow.addView(prevBtn, gapped(10));
         mediaRow.addView(mainBtn, gapped(10));
         mediaRow.addView(nextBtn, gapped(10));
-        mediaRow.addView(shuffleSpacer, new LayoutParams(Glass.dp(getContext(), iconDp(42)) + dp(10), 1));
+        mediaRow.addView(rightSpacer, new LayoutParams(Glass.dp(getContext(), iconDp(42)) + dp(10), 1));
+        mediaRow.addView(repeatBtn, gapped(10));
         nowBox.addView(mediaRow);
 
         headerBlock.addView(nowBox);
@@ -419,8 +424,14 @@ final class PanelView extends LinearLayout {
         mainBtn.setIcon(now.playing ? Icon.PAUSE : Icon.PLAY);
         mainBtn.setContentDescription(now.playing ? "Pause" : "Play");
         boolean showShuffle = !idle && now.shuffleAvailable;
+        boolean showRepeat = !idle && now.repeatAvailable;
         shuffleBtn.setVisibility(showShuffle ? VISIBLE : GONE);
-        shuffleSpacer.setVisibility(showShuffle ? VISIBLE : GONE);
+        repeatBtn.setVisibility(showRepeat ? VISIBLE : GONE);
+        leftSpacer.setVisibility(!showShuffle && showRepeat ? VISIBLE : GONE);
+        rightSpacer.setVisibility(showShuffle && !showRepeat ? VISIBLE : GONE);
+        repeatBtn.setIcon(now.repeatMode == android.support.v4.media.session.PlaybackStateCompat.REPEAT_MODE_ONE ? Icon.REPEAT_ONE : Icon.REPEAT);
+        repeatBtn.setStyle(RepeatMode.isOn(now.repeatMode) ? IconView.Style.ON : IconView.Style.NORMAL);
+        repeatBtn.setContentDescription(RepeatMode.label(now.repeatMode));
         shuffleBtn.setStyle(now.shuffleOn ? IconView.Style.ON : IconView.Style.NORMAL);
         shuffleBtn.setContentDescription(now.shuffleOn ? "Shuffle on" : "Shuffle off");
         mediaRow.setVisibility(idle ? GONE : VISIBLE);

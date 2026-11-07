@@ -111,6 +111,12 @@ final class MediaFollower {
         compat.getTransportControls().setShuffleMode(mode > 0 ? PlaybackStateCompat.SHUFFLE_MODE_NONE : PlaybackStateCompat.SHUFFLE_MODE_ALL);
     }
 
+    /** Steps repeat through off, all and one. Does nothing for a player without repeat. */
+    void toggleRepeat() {
+        if (compat == null) return;
+        compat.getTransportControls().setRepeatMode(RepeatMode.next(compat.getRepeatMode()));
+    }
+
     void seekTo(long ms) { if (target != null) target.getTransportControls().seekTo(ms); }
 
     /** Stops the 2-second re-pick for a while, so the player we just left (still reporting playing) is not re-attached. */
@@ -279,7 +285,9 @@ final class MediaFollower {
         PlaybackState ps = target.getPlaybackState();
         boolean shuffleAvailable = ControlsPolicy.showShuffle(target.getPackageName(), ps == null ? 0 : ps.getActions());
         boolean shuffleOn = shuffleAvailable && compat != null && compat.getShuffleMode() > 0;
+        boolean repeatAvailable = ControlsPolicy.showRepeat(target.getPackageName(), ps == null ? 0 : ps.getActions());
+        int repeatMode = repeatAvailable && compat != null ? compat.getRepeatMode() : 0;
         return new NowPlaying(target.getPackageName(), Proxy.label(ctx, target.getPackageName()), title, artist,
-                isPlaying(target), pos, dur, lyrics, lyricsLoading, line, shuffleAvailable, shuffleOn, cover, coverId);
+                isPlaying(target), pos, dur, lyrics, lyricsLoading, line, shuffleAvailable, shuffleOn, repeatAvailable, repeatMode, cover, coverId);
     }
 }
