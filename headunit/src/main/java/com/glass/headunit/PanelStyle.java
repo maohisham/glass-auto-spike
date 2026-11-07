@@ -28,4 +28,23 @@ final class PanelStyle {
 
     /** The driving score's colour: green from 75, yellow from 60, red below. */
     static int scoreColor(int score) { return score >= 75 ? 0xFF66DD88 : score >= 60 ? 0xFFFFCC44 : 0xFFFF6655; }
+
+    /**
+     * The lyrics' own text scale. -1 follows the panel's text size (so nothing changes by default); 0 to 3 are small,
+     * medium, large and extra large whatever the panel's setting is.
+     */
+    static float lyricsScale(int lyricsSize, int panelTextSize) {
+        if (lyricsSize < 0) return scale(panelTextSize);
+        switch (Math.min(lyricsSize, 3)) {
+            case 0: return 0.85f;
+            case 1: return 1.0f;
+            case 2: return 1.25f;
+            default: return 1.5f;
+        }
+    }
+
+    /** A lyrics size in sp, with the same narrow-layout shrink as every other size. */
+    static float lyricSp(float base, int lyricsSize, int panelTextSize, PanelMode mode) {
+        return base * lyricsScale(lyricsSize, panelTextSize) * (mode == PanelMode.COMPACT ? 0.85f : 1f);
+    }
 }

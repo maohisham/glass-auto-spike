@@ -32,6 +32,7 @@ final class PanelView extends LinearLayout {
 
     private PanelMode mode = PanelMode.REGULAR;
     private int textSize = 1;
+    private int lyricsSize = -1;   // -1 follows textSize
     private boolean dark = true;
     private Controls controls;
     private Runnable onPlayer, onSettings, onPrayer, onDrive, onWeather;
@@ -98,10 +99,11 @@ final class PanelView extends LinearLayout {
     }
 
     /** Rebuilds only when something that changes the views changed. */
-    void setStyle(PanelMode m, int textSize, boolean dark) {
-        if (m == mode && textSize == this.textSize && dark == this.dark) return;
+    void setStyle(PanelMode m, int textSize, int lyricsSize, boolean dark) {
+        if (m == mode && textSize == this.textSize && lyricsSize == this.lyricsSize && dark == this.dark) return;
         this.mode = m;
         this.textSize = textSize;
+        this.lyricsSize = lyricsSize;
         this.dark = dark;
         build();
     }
@@ -144,7 +146,18 @@ final class PanelView extends LinearLayout {
 
     private float sp(float base) { return PanelStyle.sp(base, textSize, mode); }
 
+    private float lyricSp(float base) { return PanelStyle.lyricSp(base, lyricsSize, textSize, mode); }
+
     private int dp(float v) { return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics())); }
+
+    /** Text for the lyrics list: sized by the lyrics' own setting. */
+    private TextView lyricText(float baseSp, boolean bold, int color) {
+        TextView t = new TextView(getContext());
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, lyricSp(baseSp));
+        t.setTypeface(Typeface.DEFAULT, bold ? Typeface.BOLD : Typeface.NORMAL);
+        t.setTextColor(color);
+        return t;
+    }
 
     private TextView text(float baseSp, boolean bold, int color) {
         TextView t = new TextView(getContext());
@@ -258,8 +271,9 @@ final class PanelView extends LinearLayout {
             stripBox.addView(prayerBox, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
             stripBox.addView(weatherBox, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         } else {
-            stripBox.addView(weatherBox, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
-            stripBox.addView(prayerBox, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.4f));
+            // the weather takes only the room it needs; the prayer text gets the rest (it is the longer line at large text sizes)
+            stripBox.addView(weatherBox, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+            stripBox.addView(prayerBox, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
         }
         headerBlock.addView(stripBox);
 
@@ -544,12 +558,12 @@ final class PanelView extends LinearLayout {
         lineViews.clear();
         shownLyrics = now.lyrics;
         litLine = -2;
-        header = text(20, true, PanelStyle.fg(dark));
+        header = lyricText(20, true, PanelStyle.fg(dark));
         header.setText(now.title + (now.artist.isEmpty() ? "" : "\n" + now.artist));
         header.setPadding(0, dp(8), 0, dp(16));
         lyricList.addView(header);
         for (String l : now.lyrics.lines) {
-            TextView t = text(18, false, PanelStyle.dim(dark));
+            TextView t = lyricText(18, false, PanelStyle.dim(dark));
             t.setText(l.isEmpty() ? " " : l);
             t.setPadding(0, dp(6), 0, dp(6));
             lyricList.addView(t);
@@ -570,7 +584,7 @@ final class PanelView extends LinearLayout {
         for (int i = 0; i < lineViews.size(); i++) {
             TextView t = lineViews.get(i);
             boolean lit = !headerLit && i == idx;
-            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(lit ? 26 : 18));
+            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, lyricSp(lit ? 26 : 18));
             t.setTypeface(Typeface.DEFAULT, lit ? Typeface.BOLD : Typeface.NORMAL);
             t.setTextColor(lit ? fg : dim);
         }

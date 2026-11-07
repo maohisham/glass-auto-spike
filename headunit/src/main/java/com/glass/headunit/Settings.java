@@ -61,4 +61,8 @@ final class Settings {
     /** The speed limit for the alert in km/h, 40 to 180. */
     int speedLimit() { return sp.getInt("speedLimit", 110); }
     void setSpeedLimit(int kmh) { sp.edit().putInt("speedLimit", Math.max(40, Math.min(180, kmh))).apply(); }
+
+    /** The lyrics' own text size: -1 follows the panel's text size, 0 small, 1 medium, 2 large, 3 extra large. */
+    int lyricsSize() { return sp.getInt("lyricsSize", -1); }
+    void setLyricsSize(int v) { sp.edit().putInt("lyricsSize", Math.max(-1, Math.min(3, v))).apply(); }
 }

@@ -51,6 +51,8 @@ public class SettingsActivity extends Activity {
 
         root.addView(heading("Text size"));
         root.addView(choice(new String[]{"Small", "Medium", "Large"}, s.textSize(), s::setTextSize));
+        root.addView(heading("Lyrics text size"));
+        root.addView(choice(new String[]{"Same as the panel", "Small", "Medium", "Large", "Extra large"}, s.lyricsSize() + 1, i -> s.setLyricsSize(i - 1), true));
         root.addView(heading("Theme"));
         root.addView(choice(new String[]{"Follow the unit", "Light", "Dark"}, s.theme(), s::setTheme));
 
@@ -194,8 +196,12 @@ public class SettingsActivity extends Activity {
     }
 
     private RadioGroup choice(String[] labels, int selected, java.util.function.Consumer<Integer> set) {
+        return choice(labels, selected, set, false);
+    }
+
+    private RadioGroup choice(String[] labels, int selected, java.util.function.Consumer<Integer> set, boolean vertical) {
         RadioGroup g = new RadioGroup(this);
-        g.setOrientation(RadioGroup.HORIZONTAL);
+        g.setOrientation(vertical ? RadioGroup.VERTICAL : RadioGroup.HORIZONTAL);
         for (int i = 0; i < labels.length; i++) {
             RadioButton rb = new RadioButton(this);
             rb.setText(labels[i]);
