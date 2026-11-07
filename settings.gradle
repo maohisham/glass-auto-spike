@@ -14,7 +14,12 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "glass-auto-spike"
-include ':app'
-include ':prayer'
-include ':prayerlive'
+
+// The app: the head unit panel.
 include ':headunit'
+
+// The earlier Android Auto experiments live in legacy/ and are not part of the default build.
+// To build one again, uncomment its line (each has its own folder under legacy/).
+// include ':legacy:app'
+// include ':legacy:prayer'
+// include ':legacy:prayerlive'

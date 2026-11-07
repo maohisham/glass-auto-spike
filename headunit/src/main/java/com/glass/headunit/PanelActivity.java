@@ -117,7 +117,8 @@ public class PanelActivity extends Activity {
         if (!demo) BubbleService.apply(this);
         if (demo) {
             panel.showData(demoPrayer(), demoWeather(), false, false);
-            handler.post(demoStep);
+            // --ez idle true shows the nothing-playing screen (the prayer table) instead of a song
+            if (getIntent().getBooleanExtra("idle", false)) panel.showNowPlaying(NowPlaying.idle()); else handler.post(demoStep);
             return;
         }
         follower = new MediaFollower(this, n -> panel.showNowPlaying(n));
