@@ -152,13 +152,19 @@ final class Prayer {
     /** "2h 15m" until the next prayer. */
     static String untilNext(Data d) {
         long mins = Math.max(0, (d.nextMs - System.currentTimeMillis()) / 60000);
+        return formatMinutes(mins);
+    }
+
+    /** "1h 06m" from an hour up, just "6m" under an hour. */
+    static String formatMinutes(long mins) {
+        if (mins < 60) return mins + "m";
         return (mins / 60) + "h " + String.format(Locale.US, "%02d", mins % 60) + "m";
     }
 
     /** "Zohor in 0h 33m" */
     static String countdown(Data d) {
         long mins = Math.max(0, (d.nextMs - System.currentTimeMillis()) / 60000);
-        return String.format(Locale.US, "%s in %dh %02dm", d.nextName, mins / 60, mins % 60);
+        return d.nextName + " in " + formatMinutes(mins);
     }
 
     private static Data esolat(Zones.Zone z) {

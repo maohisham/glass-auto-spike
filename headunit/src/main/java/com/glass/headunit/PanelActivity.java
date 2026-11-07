@@ -200,7 +200,9 @@ public class PanelActivity extends Activity {
             panel.showScore(DriveTrip.trip().calculate(System.currentTimeMillis()));
             panel.showData(demoPrayer(), demoWeather(), false, false);
             // --ez idle true shows the nothing-playing screen (the prayer table) instead of a song
-            if (getIntent().getBooleanExtra("idle", false)) panel.showNowPlaying(NowPlaying.idle()); else handler.post(demoStep);
+            if (getIntent().getBooleanExtra("idle", false)) panel.showNowPlaying(NowPlaying.idle());
+            else if (getIntent().getBooleanExtra("radio", false)) panel.showNowPlaying(demoRadio());   // --ez radio true: a station instead of a song
+            else handler.post(demoStep);
             return;
         }
         follower = new MediaFollower(this, n -> panel.showNowPlaying(n));
@@ -279,6 +281,11 @@ public class PanelActivity extends Activity {
         w.city = "Sepang";
         w.code = 53;
         return w;
+    }
+
+    private static NowPlaying demoRadio() {
+        return new NowPlaying(Proxy.VRADIO, "VRadio", "Hot FM", "Now playing: Sesaat Cuma Kamu", true, 0, 0, null, false, -1,
+                false, false, false, 0, null, "");
     }
 
     private static NowPlaying demoNow(int line) {

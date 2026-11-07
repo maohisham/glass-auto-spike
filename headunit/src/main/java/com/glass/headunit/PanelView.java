@@ -48,7 +48,9 @@ final class PanelView extends LinearLayout {
     private long nowReceivedAt;
 
     private LinearLayout headerBlock, topRow, stripBox, banners, nowBox, songRow, mediaRow, progRow, lyricList, idleBox;
-    private CoverView coverView;
+    private CoverView coverView, radioCover;
+    private LinearLayout radioBox;
+    private TextView radioTitle, radioInfo, radioPlayer;
     private MaxHeightScrollView headerScroll;
     private TextView weatherText, prayerText, title, artist, bigText, header, elapsedText, durationText, idleNote;
     private IconView shuffleBtn, repeatBtn, prevBtn, mainBtn, nextBtn;
@@ -226,11 +228,10 @@ final class PanelView extends LinearLayout {
         if (scoreEnabled) {
             speedChip = text(16, true, fg);
             speedChip.setGravity(Gravity.CENTER);
-            speedChip.setPadding(dp(16), dp(10), dp(16), dp(10));
-            speedChip.setBackground(Glass.button(getContext(), dark, false, false, 22));
+            speedChip.setPadding(dp(4), dp(10), dp(4), dp(10));   // plain text: it is not a button
             speedChip.setContentDescription("Current speed");
             LayoutParams sp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-            sp.rightMargin = dp(10);
+            sp.rightMargin = dp(6);
             topRow.addView(speedChip, sp);
             scoreChip = text(16, true, dim);
             scoreChip.setGravity(Gravity.CENTER);
@@ -353,6 +354,38 @@ final class PanelView extends LinearLayout {
         bigText.setGravity(Gravity.CENTER);
         addView(bigText, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
 
+        // radio has no lyrics: the station's picture, name and song info use that space instead
+        boolean compact = mode == PanelMode.COMPACT;
+        radioBox = new LinearLayout(getContext());
+        radioBox.setOrientation(compact ? VERTICAL : HORIZONTAL);
+        radioBox.setGravity(Gravity.CENTER);
+        radioBox.setPadding(0, dp(8), 0, dp(8));
+        radioCover = new CoverView(getContext(), dark, compact ? 120 : 148);
+        radioBox.addView(radioCover);
+        LinearLayout radioWords = new LinearLayout(getContext());
+        radioWords.setOrientation(VERTICAL);
+        radioTitle = text(24, true, fg);
+        radioTitle.setMaxLines(3);
+        radioTitle.setEllipsize(TextUtils.TruncateAt.END);
+        radioInfo = text(16, false, dim);
+        radioInfo.setMaxLines(4);
+        radioInfo.setEllipsize(TextUtils.TruncateAt.END);
+        radioInfo.setPadding(0, dp(6), 0, 0);
+        radioPlayer = text(13, false, accent);
+        radioPlayer.setPadding(0, dp(10), 0, 0);
+        if (compact) {
+            radioTitle.setGravity(Gravity.CENTER);
+            radioInfo.setGravity(Gravity.CENTER);
+            radioPlayer.setGravity(Gravity.CENTER);
+        }
+        radioWords.addView(radioTitle);
+        radioWords.addView(radioInfo);
+        radioWords.addView(radioPlayer);
+        LayoutParams rw = compact ? new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT) : new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
+        if (compact) rw.topMargin = dp(12); else rw.leftMargin = dp(18);
+        radioBox.addView(radioWords, rw);
+        addView(radioBox, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
+
         // nothing playing: the prayer table fills the space
         idleBox = new LinearLayout(getContext());
         idleBox.setOrientation(VERTICAL);
@@ -409,9 +442,16 @@ final class PanelView extends LinearLayout {
     private void bindTop() {
         weatherText.setText(weather == null ? "" : weather.emoji + " " + Math.round(weather.tempC) + "°C"
                 + (weather.city.isEmpty() ? "" : "  " + weather.city));
-        prayerText.setText(prayer == null ? "" : prayer.justStarted
-                ? "● " + prayer.currentName + " time now"
-                : prayer.nextName + " " + Prayer.to12(prayer.nextTime) + "  ·  in " + Prayer.untilNext(prayer));
+        if (prayer == null) prayerText.setText("");
+        else if (prayer.justStarted) prayerText.setText("● " + prayer.currentName + " time now");
+        else {
+            // the countdown drops to its own line when the strip is too narrow for one line, and has no hour part under an hour
+            String line = StripText.build(prayer.nextName, Prayer.to12(prayer.nextTime), Prayer.untilNext(prayer));
+            android.text.SpannableString sp = new android.text.SpannableString(line);
+            int cut = line.indexOf(' ') + 1;
+            sp.setSpan(new android.text.style.ForegroundColorSpan(PanelStyle.fg(dark)), cut, line.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            prayerText.setText(sp);
+        }
         stripBox.setVisibility(prayer == null && weather == null ? GONE : VISIBLE);
     }
 
@@ -505,6 +545,15 @@ final class PanelView extends LinearLayout {
             artist.setText(now.artist);
         }
         artist.setVisibility(artist.getText().length() == 0 ? GONE : VISIBLE);
+        boolean radio = !idle && ControlsPolicy.isRadio(now.pkg);
+        songRow.setVisibility(radio ? GONE : VISIBLE);
+        if (radio) {
+            radioCover.setCover(now.cover);
+            radioTitle.setText(now.title.isEmpty() ? now.playerLabel : now.title);
+            radioInfo.setText(now.artist);
+            radioInfo.setVisibility(now.artist.isEmpty() ? GONE : VISIBLE);
+            radioPlayer.setText(now.playerLabel + " · live");
+        }
         bindProgress();
     }
 
@@ -521,6 +570,15 @@ final class PanelView extends LinearLayout {
     private void bindLyricsArea() {
         boolean idle = now.pkg == null;
         stripBox.setVisibility(idle || (prayer == null && weather == null) ? GONE : VISIBLE);
+        boolean radio = !idle && ControlsPolicy.isRadio(now.pkg);
+        radioBox.setVisibility(radio ? VISIBLE : GONE);
+        if (radio) {
+            scroll.setVisibility(GONE);
+            bigText.setVisibility(GONE);
+            idleScroll().setVisibility(GONE);
+            nowBox.setVisibility(VISIBLE);
+            return;
+        }
         boolean haveLyrics = !idle && !now.lyricsLoading && now.lyrics != null;
         scroll.setVisibility(haveLyrics ? VISIBLE : GONE);
         bigText.setVisibility(!idle && !haveLyrics ? VISIBLE : GONE);

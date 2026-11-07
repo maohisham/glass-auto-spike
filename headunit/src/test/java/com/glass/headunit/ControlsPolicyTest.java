@@ -13,6 +13,13 @@ public class ControlsPolicyTest {
     private static final long WITHOUT_SHUFFLE = PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE;
 
     @Test
+    public void onlyVRadioCountsAsRadio() {
+        assertTrue(ControlsPolicy.isRadio(Proxy.VRADIO));
+        assertFalse(ControlsPolicy.isRadio("com.spotify.music"));
+        assertFalse(ControlsPolicy.isRadio(null));
+    }
+
+    @Test
     public void shuffleShowsForAMusicPlayerThatOffersIt() {
         assertTrue(ControlsPolicy.showShuffle("com.spotify.music", WITH_SHUFFLE));
     }

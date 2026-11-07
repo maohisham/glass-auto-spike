@@ -7,6 +7,9 @@ final class ControlsPolicy {
 
     private ControlsPolicy() { }
 
+    /** Radio apps have no lyrics: the panel shows a station card instead. Only VRadio is known as radio. */
+    static boolean isRadio(String pkg) { return Proxy.VRADIO.equals(pkg); }
+
     /** Shuffle only for a music player that offers it; never for VRadio or when nothing is playing. */
     static boolean showShuffle(String pkg, long actions) {
         if (pkg == null || Proxy.VRADIO.equals(pkg)) return false;
