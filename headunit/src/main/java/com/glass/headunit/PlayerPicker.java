@@ -157,10 +157,10 @@ final class PlayerPicker extends LinearLayout {
         t.setGravity(Gravity.CENTER);
         t.setSingleLine();
         t.setEllipsize(TextUtils.TruncateAt.END);
-        LayoutParams tl = new LayoutParams(Glass.dp(ctx, 76), LayoutParams.WRAP_CONTENT);
+        LayoutParams tl = new LayoutParams(Glass.dp(ctx, 92), LayoutParams.WRAP_CONTENT);
         tl.topMargin = Glass.dp(ctx, 6);
         c.addView(t, tl);
-        LayoutParams lp = new LayoutParams(Glass.dp(ctx, 98), LayoutParams.WRAP_CONTENT);
+        LayoutParams lp = new LayoutParams(Glass.dp(ctx, 114), LayoutParams.WRAP_CONTENT);
         lp.rightMargin = Glass.dp(ctx, 8);
         c.setLayoutParams(lp);
         return c;
@@ -336,6 +336,7 @@ final class PlayerPicker extends LinearLayout {
         b.setBackground(Glass.button(ctx, dark, false, selected, 22));
         b.setMinHeight(Glass.dp(ctx, 44));
         b.setMinimumHeight(Glass.dp(ctx, 44));
+        b.setPadding(Glass.dp(ctx, 18), 0, Glass.dp(ctx, 18), 0);
         b.setOnClickListener(v -> r.run());
         return b;
     }
