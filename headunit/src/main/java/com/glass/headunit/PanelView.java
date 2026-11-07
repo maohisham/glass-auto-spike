@@ -9,6 +9,7 @@ import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -49,7 +50,7 @@ final class PanelView extends LinearLayout {
 
     private LinearLayout headerBlock, topRow, stripBox, banners, nowBox, songRow, mediaRow, progRow, lyricList, idleBox;
     private CoverView coverView, radioCover;
-    private LinearLayout radioBox;
+    private LinearLayout radioBox, radioArea;
     private TextView radioTitle, radioInfo, radioPlayer;
     private MaxHeightScrollView headerScroll;
     private TextView weatherText, prayerText, title, artist, bigText, header, elapsedText, durationText, idleNote;
@@ -384,7 +385,12 @@ final class PanelView extends LinearLayout {
         LayoutParams rw = compact ? new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT) : new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
         if (compact) rw.topMargin = dp(12); else rw.leftMargin = dp(18);
         radioBox.addView(radioWords, rw);
-        addView(radioBox, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
+        // the card and, under it, the player controls (they move here while radio plays)
+        radioArea = new LinearLayout(getContext());
+        radioArea.setOrientation(VERTICAL);
+        radioArea.setGravity(Gravity.CENTER);
+        radioArea.addView(radioBox, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        addView(radioArea, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
 
         // nothing playing: the prayer table fills the space
         idleBox = new LinearLayout(getContext());
@@ -546,6 +552,7 @@ final class PanelView extends LinearLayout {
         }
         artist.setVisibility(artist.getText().length() == 0 ? GONE : VISIBLE);
         boolean radio = !idle && ControlsPolicy.isRadio(now.pkg);
+        placeControls(radio);
         songRow.setVisibility(radio ? GONE : VISIBLE);
         if (radio) {
             radioCover.setCover(now.cover);
@@ -555,6 +562,16 @@ final class PanelView extends LinearLayout {
             radioPlayer.setText(now.playerLabel + " · live");
         }
         bindProgress();
+    }
+
+    /** Radio: the controls sit under the station card; for music they stay in the header above the lyrics. */
+    private void placeControls(boolean radio) {
+        ViewGroup want = radio ? radioArea : nowBox;
+        if (mediaRow.getParent() == want) return;
+        if (mediaRow.getParent() != null) ((ViewGroup) mediaRow.getParent()).removeView(mediaRow);
+        LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        if (radio) lp.topMargin = dp(16);
+        want.addView(mediaRow, lp);
     }
 
     /** The song's bar moves between updates: the position we were told plus the time since, while it plays. */
@@ -571,12 +588,12 @@ final class PanelView extends LinearLayout {
         boolean idle = now.pkg == null;
         stripBox.setVisibility(idle || (prayer == null && weather == null) ? GONE : VISIBLE);
         boolean radio = !idle && ControlsPolicy.isRadio(now.pkg);
-        radioBox.setVisibility(radio ? VISIBLE : GONE);
+        radioArea.setVisibility(radio ? VISIBLE : GONE);
         if (radio) {
             scroll.setVisibility(GONE);
             bigText.setVisibility(GONE);
             idleScroll().setVisibility(GONE);
-            nowBox.setVisibility(VISIBLE);
+            nowBox.setVisibility(GONE);   // its only content, the controls, sits under the station card now
             return;
         }
         boolean haveLyrics = !idle && !now.lyricsLoading && now.lyrics != null;
