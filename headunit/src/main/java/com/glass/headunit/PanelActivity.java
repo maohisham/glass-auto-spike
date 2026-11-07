@@ -24,6 +24,8 @@ public class PanelActivity extends Activity {
     private PlayerPicker picker;
     private PrayerScreen prayerScreen;
     private DriveScreen driveScreen;
+    private WeatherScreen weatherScreen;
+    private Forecast forecast;
     private SpeedFollower speed;
     private int tickCount;
     private static boolean autoPlayScheduled;   // once per process (per panel start)
@@ -63,6 +65,7 @@ public class PanelActivity extends Activity {
         panel.setOnPlayer(this::showPicker);
         panel.setOnPrayer(this::showPrayer);
         panel.setOnDrive(this::showDrive);
+        panel.setOnWeather(this::showWeather);
         root = new android.widget.FrameLayout(this);
         root.addView(panel, new android.widget.FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
@@ -108,6 +111,19 @@ public class PanelActivity extends Activity {
         }, 5000);
     }
 
+    private void showWeather() {
+        if (weatherScreen != null) return;
+        Weather.Data w = panel.weather();
+        weatherScreen = new WeatherScreen(this, panel.isDark(), panel.textSize(), panel.mode(), w == null ? "" : w.city, forecast, this::hideWeather);
+        root.addView(weatherScreen, new android.widget.FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private void hideWeather() {
+        if (weatherScreen == null) return;
+        root.removeView(weatherScreen);
+        weatherScreen = null;
+    }
+
     private void showDrive() {
         if (driveScreen != null) return;
         driveScreen = new DriveScreen(this, panel.isDark(), panel.textSize(), panel.mode(), this::hideDrive);
@@ -148,6 +164,7 @@ public class PanelActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (weatherScreen != null) { hideWeather(); return; }
         if (driveScreen != null) { hideDrive(); return; }
         if (prayerScreen != null) { hidePrayer(); return; }
         if (picker != null) { if (!picker.handleBack()) hidePicker(); return; }
@@ -168,6 +185,7 @@ public class PanelActivity extends Activity {
         if (!demo) BubbleService.apply(this);
         panel.setScoreEnabled(Settings.of(this).driveScore());
         if (demo) {
+            forecast = DemoData.forecast();
             seedDemoTrip();
             panel.showScore(DriveTrip.trip().calculate(System.currentTimeMillis()));
             panel.showData(demoPrayer(), demoWeather(), false, false);
@@ -177,6 +195,7 @@ public class PanelActivity extends Activity {
         }
         follower = new MediaFollower(this, n -> panel.showNowPlaying(n));
         controller = new PanelController(this, (p, w, off, loc) -> panel.showData(p, w, off, loc));
+        controller.setForecastListener(f -> { forecast = f; if (weatherScreen != null) weatherScreen.setForecast(f); });
         panel.setControls(new PanelView.Controls() {
             @Override public void play() { follower.play(); }
             @Override public void pause() { follower.pause(); }
@@ -205,6 +224,7 @@ public class PanelActivity extends Activity {
         hidePicker();
         hidePrayer();
         hideDrive();
+        hideWeather();
         if (speed != null) { speed.stop(); speed = null; }
         if (follower != null) { follower.stop(); follower = null; }
         if (controller != null) { controller.stop(); controller = null; }

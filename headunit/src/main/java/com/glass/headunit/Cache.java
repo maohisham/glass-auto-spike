@@ -90,4 +90,17 @@ final class Cache {
 
     /** When the saved weather was fetched, ms since the epoch, or 0. */
     static long weatherAt(Context c) { return prefs(c).getLong("weatherAt", 0); }
+
+    /** Saves the forecast and air quality answers as received, so they can be read again after a restart. */
+    static void saveForecast(Context c, ForecastFetcher.Raw raw) {
+        prefs(c).edit().putString("forecastRaw", raw.forecast).putString("airRaw", raw.air == null ? "" : raw.air).apply();
+    }
+
+    /** The saved forecast read as of now (so its hour list starts at the current hour), or null. */
+    static Forecast loadForecast(Context c) {
+        String f = prefs(c).getString("forecastRaw", null);
+        if (f == null) return null;
+        String a = prefs(c).getString("airRaw", "");
+        return ForecastParser.parse(f, a.isEmpty() ? null : a, System.currentTimeMillis());
+    }
 }

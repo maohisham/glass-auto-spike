@@ -44,6 +44,17 @@ final class Glass {
         return g;
     }
 
+    /** A transparent area that lights up softly while pressed, for tappable parts inside a glass card. */
+    static Drawable pressOverlay(Context c, boolean dark, float radiusDp) {
+        GradientDrawable pressed = new GradientDrawable();
+        pressed.setCornerRadius(dp(c, radiusDp));
+        pressed.setColor(dark ? 0x33FFFFFF : 0x2A0C1626);
+        StateListDrawable s = new StateListDrawable();
+        s.addState(new int[]{android.R.attr.state_pressed}, pressed);
+        s.addState(new int[]{}, new android.graphics.drawable.ColorDrawable(0));
+        return s;
+    }
+
     /** A rounded glass text button, for the few places that still need words. */
     static Button textButton(Context c, String label, boolean dark, Runnable onClick) {
         Button b = new Button(c);

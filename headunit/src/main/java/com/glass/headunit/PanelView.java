@@ -34,7 +34,7 @@ final class PanelView extends LinearLayout {
     private int textSize = 1;
     private boolean dark = true;
     private Controls controls;
-    private Runnable onPlayer, onSettings, onPrayer, onDrive;
+    private Runnable onPlayer, onSettings, onPrayer, onDrive, onWeather;
     private boolean scoreEnabled = true;
     private EcoScore.Stats score;
     private TextView scoreChip;
@@ -73,6 +73,7 @@ final class PanelView extends LinearLayout {
     void setOnSettings(Runnable r) { onSettings = r; build(); }
     void setOnPrayer(Runnable r) { onPrayer = r; }
     void setOnDrive(Runnable r) { onDrive = r; }
+    void setOnWeather(Runnable r) { onWeather = r; }
 
     /** Shows or hides the driving score chip (the setting). */
     void setScoreEnabled(boolean on) {
@@ -150,6 +151,19 @@ final class PanelView extends LinearLayout {
         return new IconView(getContext(), i, description, dark, iconDp(sizeDp), style, r);
     }
 
+    /** A tappable area inside a glass card that lights up while pressed. */
+    private LinearLayout tapArea(String description, TextView content, Runnable onClick) {
+        LinearLayout box = new LinearLayout(getContext());
+        box.setOrientation(VERTICAL);
+        box.setPadding(dp(10), dp(8), dp(10), dp(8));
+        box.setBackground(Glass.pressOverlay(getContext(), dark, 12));
+        box.setClickable(true);
+        box.setContentDescription(description);
+        box.setOnClickListener(v -> onClick.run());
+        box.addView(content);
+        return box;
+    }
+
     private LayoutParams gapped(int leftDp) {
         LayoutParams lp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         lp.leftMargin = dp(leftDp);
@@ -203,20 +217,20 @@ final class PanelView extends LinearLayout {
         // prayer strip: tap for the full table
         stripBox = new LinearLayout(getContext());
         stripBox.setOrientation(mode == PanelMode.COMPACT ? VERTICAL : HORIZONTAL);
-        stripBox.setPadding(dp(14), dp(10), dp(14), dp(10));
+        stripBox.setPadding(dp(4), dp(4), dp(4), dp(4));
         stripBox.setBackground(Glass.button(getContext(), dark, false, false, 14));
-        stripBox.setClickable(true);
-        stripBox.setContentDescription("Open the prayer times");
-        stripBox.setOnClickListener(v -> { if (onPrayer != null) onPrayer.run(); });
         weatherText = text(16, false, fg);
         prayerText = text(16, true, accent);
+        // two tappable halves: the weather opens the forecast, the prayer opens the table
+        LinearLayout weatherBox = tapArea("Open the weather", weatherText, () -> { if (onWeather != null) onWeather.run(); });
+        LinearLayout prayerBox = tapArea("Open the prayer times", prayerText, () -> { if (onPrayer != null) onPrayer.run(); });
         if (mode == PanelMode.COMPACT) {
-            stripBox.addView(prayerText);
-            stripBox.addView(weatherText);
+            stripBox.addView(prayerBox, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+            stripBox.addView(weatherBox, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         } else {
-            stripBox.addView(weatherText, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+            stripBox.addView(weatherBox, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
             prayerText.setGravity(Gravity.END);
-            stripBox.addView(prayerText, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.4f));
+            stripBox.addView(prayerBox, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.4f));
         }
         headerBlock.addView(stripBox);
 
@@ -299,7 +313,11 @@ final class PanelView extends LinearLayout {
         idleTable = new PrayerTableView(getContext(), dark, textSize, mode);
         idleNote = text(15, false, dim);
         idleWeather = text(15, false, dim);
-        idleWeather.setPadding(dp(4), dp(14), 0, 0);
+        idleWeather.setPadding(dp(10), dp(14), dp(10), dp(10));
+        idleWeather.setBackground(Glass.pressOverlay(getContext(), dark, 12));
+        idleWeather.setClickable(true);
+        idleWeather.setContentDescription("Open the weather");
+        idleWeather.setOnClickListener(v -> { if (onWeather != null) onWeather.run(); });
         idleBox.addView(idleNote);
         idleBox.addView(idleTable);
         idleBox.addView(idleWeather);
@@ -466,7 +484,7 @@ final class PanelView extends LinearLayout {
             idleTable.setVisibility(VISIBLE);
             idleTable.bind(prayer, System.currentTimeMillis());
         }
-        idleWeather.setText(weather == null ? "" : weather.emoji + " " + Math.round(weather.tempC) + "°C  " + weather.city);
+        idleWeather.setText(weather == null ? "" : weather.emoji + " " + Math.round(weather.tempC) + "°C  " + weather.city + "  ·  forecast");
         idleWeather.setVisibility(weather == null ? GONE : VISIBLE);
     }
 

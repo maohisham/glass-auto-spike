@@ -57,13 +57,13 @@ final class Weather {
         return "";
     }
 
-    private static String emoji(int c) {
+    static String emoji(int c) {
         if (c == 0) return "☀"; if (c <= 2) return "🌤"; if (c == 3) return "☁"; if (c <= 48) return "🌫";
         if (c <= 55) return "🌦"; if (c <= 65) return "🌧"; if (c <= 67) return "🌨"; if (c <= 77) return "❄";
         if (c <= 82) return "🌦"; if (c <= 86) return "🌨"; if (c <= 99) return "⛈"; return "🌡";
     }
 
-    private static String desc(int c) {
+    static String desc(int c) {
         if (c == 0) return "Clear"; if (c <= 2) return "Partly cloudy"; if (c == 3) return "Overcast"; if (c <= 48) return "Foggy";
         if (c <= 55) return "Drizzle"; if (c <= 65) return "Rain"; if (c <= 67) return "Freezing rain"; if (c <= 77) return "Snow";
         if (c <= 82) return "Showers"; if (c <= 86) return "Snow showers"; if (c <= 99) return "Thunderstorm"; return "";
