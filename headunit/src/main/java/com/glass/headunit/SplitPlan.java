@@ -8,6 +8,12 @@ final class SplitPlan {
     /** Where the divider belongs, as a fraction of the screen from the left (or top). mapShare is the effective share. */
     static float dividerFraction(float mapShare, boolean swapSides) { return swapSides ? 1f - mapShare : mapShare; }
 
+    /** True when the divider (centre position in px) has stopped moving between two reads, so a drag will really start on it. */
+    static boolean isSettled(float previousCenter, float currentCenter) { return Math.abs(previousCenter - currentCenter) <= 2f; }
+
+    /** True when the map's window lies before the divider (left, or top), judged by where the unit really put it. */
+    static boolean mapIsFirst(float mapCenter, float dividerCenter) { return mapCenter < dividerCenter; }
+
     /** Split-screen puts the app in front into the left (or top) slot, so that app goes first. */
     static String firstApp(boolean swapSides) { return swapSides ? "panel" : "maps"; }
 

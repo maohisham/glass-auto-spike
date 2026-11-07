@@ -17,6 +17,11 @@
         <package android:name="app.revanced.android.apps.youtube.music" />
         <package android:name="com.google.android.apps.youtube.music" />
         <package android:name="com.ilv.vradio" />
+        <!-- Every app with a launcher icon, so the panel can offer Waze, Sygic, Teras, Tuju, Pintaz and the like. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
         <package android:name="com.google.android.apps.maps" />
     </queries>
 

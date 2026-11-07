@@ -27,7 +27,7 @@ public class SplitProbeActivity extends Activity {
         status = new TextView(this);
         root.addView(status);
         root.addView(button("Toggle split-screen", () -> run(h -> h.toggleSplit())));
-        root.addView(button("Open Google Maps beside this", () -> run(h -> h.openMaps(true))));
+        root.addView(button("Open the map app beside this", () -> run(h -> h.openMaps(true))));
         root.addView(button("Measure the divider", () -> run(h -> {
             Rect d = h.dividerBounds();
             Spike.log("probe: model " + android.os.Build.MODEL + ", screen " + h.screen().toShortString()

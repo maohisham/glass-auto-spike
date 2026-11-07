@@ -22,7 +22,7 @@ public class SettingsActivity extends Activity {
 
     private Settings s;
     private TextView ratioText, zoneRow, checklist;
-    private LinearLayout checklistBox;
+    private LinearLayout checklistBox, mapChoiceBox;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -45,11 +45,15 @@ public class SettingsActivity extends Activity {
                 showRatio();
             }
             @Override public void onStartTrackingTouch(SeekBar sb) { }
-            @Override public void onStopTrackingTouch(SeekBar sb) { }
+            @Override public void onStopTrackingTouch(SeekBar sb) { applyRatioNow(); }
         });
         root.addView(seek);
 
-        root.addView(toggle("Open Google Maps beside the panel when it starts", s.autoOpenMaps(), s::setAutoOpenMaps));
+        root.addView(heading("Map app"));
+        root.addView(toggle("Open the map app beside the panel when it starts (off: only the panel opens)", s.autoOpenMaps(), s::setAutoOpenMaps));
+        mapChoiceBox = new LinearLayout(this);
+        mapChoiceBox.setOrientation(LinearLayout.VERTICAL);
+        root.addView(mapChoiceBox);
 
         root.addView(heading("Text size"));
         root.addView(choice(new String[]{"Small", "Medium", "Large"}, s.textSize(), s::setTextSize));
@@ -58,7 +62,7 @@ public class SettingsActivity extends Activity {
         root.addView(heading("Theme"));
         root.addView(choice(new String[]{"Follow the unit", "Light", "Dark"}, s.theme(), s::setTheme));
 
-        root.addView(toggle("Panel on the left, map on the right", s.swapSides(), s::setSwapSides));
+        root.addView(toggle("Panel on the left, map on the right", s.swapSides(), on -> { s.setSwapSides(on); applyRatioNow(); }));
 
         root.addView(heading("Music"));
         root.addView(toggle("Auto-play the last player when the panel starts", s.autoPlayLast(), s::setAutoPlayLast));
@@ -117,9 +121,44 @@ public class SettingsActivity extends Activity {
     protected void onResume() {
         super.onResume();
         showRatio();
+        buildMapChoice();
         zoneRow.setText(s.manualZone().isEmpty() ? "Automatic: follows the GPS" : "Manual: " + s.manualZone());
         buildChecklist();
         BubbleService.apply(this); // picks up a permission granted while Settings was away
+    }
+
+    /** When the screen is already split, moves the divider to the new ratio at once (needs the window helper). */
+    private void applyRatioNow() {
+        SplitHelperService h = SplitHelperService.get();
+        if (h != null) h.applyRatioIfSplit();
+    }
+
+    /** The map app choice: Automatic, the navigation apps found on the unit, and a button for any other app. */
+    private void buildMapChoice() {
+        mapChoiceBox.removeAllViews();
+        final java.util.List<String[]> apps = MapAppRepo.installed(this);
+        final MapApps.Split split = MapApps.split(apps);
+        String chosen = s.mapApp();
+        String using = MapApps.choose(chosen, apps);
+        TextView now = new TextView(this);
+        now.setText(using == null ? "No map app found on this unit." : "Opens: " + MapAppRepo.label(this, using));
+        mapChoiceBox.addView(now);
+        final java.util.List<String> pkgs = new java.util.ArrayList<>();
+        final java.util.List<String> names = new java.util.ArrayList<>();
+        pkgs.add(""); names.add("Automatic (Google Maps if installed)");
+        for (String[] a : split.navigation) { pkgs.add(a[0]); names.add(a[1]); }
+        int selected = pkgs.indexOf(chosen);
+        RadioGroup g = choice(names.toArray(new String[0]), selected, i -> { s.setMapApp(pkgs.get(i)); buildMapChoice(); }, true);
+        if (selected < 0) g.clearCheck();  // an app picked from the full list is not one of these
+        mapChoiceBox.addView(g);
+        if (!split.other.isEmpty()) {
+            mapChoiceBox.addView(button("Another app…", () -> {
+                final String[] labels = new String[split.other.size()];
+                for (int i = 0; i < labels.length; i++) labels[i] = split.other.get(i)[1];
+                new android.app.AlertDialog.Builder(this).setTitle("Choose the map app")
+                        .setItems(labels, (d, i) -> { s.setMapApp(split.other.get(i)[0]); buildMapChoice(); }).show();
+            }));
+        }
     }
 
     /** Shows the ratio that will really be used on this screen, and says when it was widened. */

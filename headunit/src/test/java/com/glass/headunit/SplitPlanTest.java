@@ -19,6 +19,31 @@ public class SplitPlanTest {
     }
 
     @Test
+    public void theMapIsFirstWhenItSitsBeforeTheDivider() {
+        assertTrue(SplitPlan.mapIsFirst(400f, 1280f * 0.5f));
+        assertFalse(SplitPlan.mapIsFirst(900f, 1280f * 0.5f));
+    }
+
+    @Test
+    public void theShareBelongsToWhicheverSideTheMapIsReallyOn() {
+        // the unit put the map on the right: a 70% map needs the divider at 30% from the left
+        assertEquals(0.3f, SplitPlan.dividerFraction(0.7f, !SplitPlan.mapIsFirst(900f, 640f)), 0.001f);
+        assertEquals(0.7f, SplitPlan.dividerFraction(0.7f, !SplitPlan.mapIsFirst(300f, 640f)), 0.001f);
+    }
+
+    @Test
+    public void aDividerStillAnimatingIsNotSettled() {
+        // seen on the tablet: read at 28% while the split was still opening, it ended at 50%
+        assertFalse(SplitPlan.isSettled(0.28f * 3008, 0.50f * 3008));
+    }
+
+    @Test
+    public void aDividerThatStoppedMovingIsSettled() {
+        assertTrue(SplitPlan.isSettled(1504f, 1505f));
+        assertTrue(SplitPlan.isSettled(1504f, 1504f));
+    }
+
+    @Test
     public void mapFirstWhenThePanelIsOnTheRight() {
         assertEquals("maps", SplitPlan.firstApp(false));
         assertEquals("panel", SplitPlan.firstApp(true));

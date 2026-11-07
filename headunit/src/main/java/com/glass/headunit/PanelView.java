@@ -28,7 +28,6 @@ final class PanelView extends LinearLayout {
 
     interface Controls { void play(); void pause(); void next(); void previous(); void toggleShuffle(); void toggleRepeat(); }
 
-    private static final String MAPS = "com.google.android.apps.maps";
 
     private PanelMode mode = PanelMode.REGULAR;
     private int textSize = 1;
@@ -62,7 +61,6 @@ final class PanelView extends LinearLayout {
     private final List<TextView> lineViews = new ArrayList<>();
     private int litLine = -2;
     private int tickCount;
-    private static boolean toldAboutHelper;
 
     PanelView(Context ctx) {
         super(ctx);
@@ -221,7 +219,7 @@ final class PanelView extends LinearLayout {
         boolean firstIcon = true;
         if (onPlayer != null) { topRow.addView(icon(Icon.PLAYER, "Choose a player", 44, IconView.Style.NORMAL, () -> onPlayer.run()), gapped(0)); firstIcon = false; }
         if (onSettings != null) { topRow.addView(icon(Icon.SETTINGS, "Settings", 44, IconView.Style.NORMAL, () -> onSettings.run()), gapped(firstIcon ? 0 : 12)); firstIcon = false; }
-        if (mapsInstalled()) { topRow.addView(icon(Icon.MAPS, "Open Maps", 44, IconView.Style.NORMAL, this::openMaps), gapped(firstIcon ? 0 : 12)); }
+        if (mapsInstalled()) { topRow.addView(icon(Icon.MAPS, "Open the map app", 44, IconView.Style.NORMAL, this::openMaps), gapped(firstIcon ? 0 : 12)); }
         topRow.addView(new View(getContext()), new LayoutParams(0, 1, 1f));
         scoreChip = null;
         speedChip = null;
@@ -428,8 +426,15 @@ final class PanelView extends LinearLayout {
         }
         if (!mapsInstalled()) {
             TextView t = text(14, false, PanelStyle.accent(dark));
-            t.setText("Google Maps isn't installed or is disabled on this unit.");
+            t.setText("No map app found. Install one, or choose it in Settings.");
             banners.addView(t);
+        }
+        if (HelperPrompt.shouldShow(helperOn(), Settings.of(getContext()).mapShare())) {
+            Button b = Glass.textButton(getContext(), "Turn on the window helper to apply your split", dark,
+                    () -> Intents.safeStart(getContext(), new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS), "accessibility settings"));
+            LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+            lp.topMargin = dp(8);
+            banners.addView(b, lp);
         }
         if (locationMissing) {
             TextView t = text(13, false, PanelStyle.dim(dark));
@@ -443,23 +448,26 @@ final class PanelView extends LinearLayout {
         }
     }
 
-    /** One tap to Google Maps: beside the panel when the screen is split, full-screen when the split did not start. */
+    /** One tap to the map app: beside the panel when the screen is split, full-screen when the split did not start. */
     void openMaps() { openMaps(true); }
 
-    /** explain is true for a tap on the button: then a missing window helper is explained; the automatic start stays quiet. */
+    /** explain is true for a tap on the button; the automatic start passes false. The ratio is applied by the window helper when it is on. */
     void openMaps(boolean explain) {
-        Intent i = getContext().getPackageManager().getLaunchIntentForPackage(MAPS);
+        String pkg = MapAppRepo.selected(getContext());
+        Intent i = pkg == null ? null : getContext().getPackageManager().getLaunchIntentForPackage(pkg);
         if (i == null) return;
         i.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
-        Intents.safeStart(getContext(), i, "Google Maps");
+        Intents.safeStart(getContext(), i, MapAppRepo.label(getContext(), pkg));
         // The system splits the screen 50:50: the window helper moves the divider to the user's ratio
         SplitHelperService helper = SplitHelperService.get();
         if (helper != null) helper.applyRatioWhenSplit();
-        else if (explain && !toldAboutHelper) {
-            toldAboutHelper = true;
-            android.widget.Toast.makeText(getContext(), "Turn on the window helper (Settings, Setup) to set the map/panel ratio.", android.widget.Toast.LENGTH_LONG).show();
-            Spike.log("ratio not applied: the window helper is off");
-        }
+        else Spike.log("ratio not applied: the window helper is off");
+    }
+
+    /** True when the user has switched the window helper on in Accessibility settings. */
+    private boolean helperOn() {
+        String enabled = android.provider.Settings.Secure.getString(getContext().getContentResolver(), android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        return enabled != null && enabled.contains(getContext().getPackageName());
     }
 
     @Override
@@ -468,11 +476,7 @@ final class PanelView extends LinearLayout {
         if (headerScroll != null) headerScroll.setMaxHeightPx(PanelStyle.headerMaxPx(h));
     }
 
-    boolean mapsInstalled() {
-        try {
-            return getContext().getPackageManager().getApplicationInfo(MAPS, 0).enabled;
-        } catch (PackageManager.NameNotFoundException e) { return false; }
-    }
+    boolean mapsInstalled() { return MapAppRepo.selected(getContext()) != null; }
 
     private void bindNow() {
         boolean idle = now.pkg == null;

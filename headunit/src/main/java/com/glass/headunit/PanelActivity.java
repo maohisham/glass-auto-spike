@@ -15,7 +15,7 @@ import java.util.Arrays;
  */
 public class PanelActivity extends Activity {
 
-    /** Set by the window helper at boot: open Google Maps beside this panel as soon as it is up. */
+    /** Set by the window helper at boot: open the map app beside this panel as soon as it is up. */
     static final String EXTRA_BESIDE = "beside";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -232,13 +232,13 @@ public class PanelActivity extends Activity {
             });
             speed.start();
         }
-        // open Google Maps beside the panel: when the window helper asked for it at boot, or on every fresh start of the panel
+        // open the map app beside the panel: when the window helper asked for it at boot, or on every fresh start of the panel
         boolean helperAsked = getIntent().getBooleanExtra(EXTRA_BESIDE, false);
         getIntent().removeExtra(EXTRA_BESIDE);
         boolean auto = MapsAutoOpen.shouldOpen(Settings.of(this).autoOpenMaps(), panel.mapsInstalled(), freshStart, demo);
         freshStart = false;
         if (helperAsked || auto) {
-            Spike.log("opening Google Maps beside the panel" + (helperAsked ? " (window helper)" : " (panel start)"));
+            Spike.log("opening the map app beside the panel" + (helperAsked ? " (window helper)" : " (panel start)"));
             handler.postDelayed(() -> panel.openMaps(false), 800);
         }
     }

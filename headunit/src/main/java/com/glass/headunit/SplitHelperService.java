@@ -15,14 +15,13 @@ import android.view.accessibility.AccessibilityWindowInfo;
 import java.util.List;
 
 /**
- * The window helper: turns split-screen on, opens Google Maps and the panel side by side, and moves the divider to the
+ * The window helper: turns split-screen on, opens the map app and the panel side by side, and moves the divider to the
  * user's ratio. It is an accessibility service because that is what lets an app press the system's split-screen action
  * and drag the divider. Every step is logged, and a failed step leaves the panel as it is (full-screen with its own
  * "Open Maps" button). Behaviour differs between units, so SplitProbeActivity measures each one.
  */
 public class SplitHelperService extends AccessibilityService {
 
-    static final String MAPS = "com.google.android.apps.maps";
     /** After a drag, wait for the system's snap animation to end before reading where the divider is. */
     static final long SETTLE_MS = 1500;
     private static volatile SplitHelperService instance;
@@ -55,19 +54,20 @@ public class SplitHelperService extends AccessibilityService {
     /** Runs the layout after a delay, on the service's own handler (the service stays alive, a receiver's process may not). */
     void startLayoutAfter(long ms) { handler.postDelayed(this::startLayout, ms); }
 
-    /** Panel and Google Maps side by side at the user's ratio. Does nothing if it already ran in the last minute. */
+    /** Panel and the map app side by side at the user's ratio. Does nothing if it already ran in the last minute. */
     void startLayout() {
         long now = SystemClock.elapsedRealtime();
         if (layoutStartedAt != 0 && now - layoutStartedAt < 60_000L) { Spike.log("helper: layout already started, skipping"); return; }
         layoutStartedAt = now;
         final Settings s = Settings.of(this);
-        if (getPackageManager().getLaunchIntentForPackage(MAPS) == null) {
-            Spike.log("helper: Google Maps is not installed or disabled; leaving the panel full-screen");
+        String map = MapAppRepo.selected(this);
+        if (!MapsAutoOpen.shouldOpen(s.autoOpenMaps(), map != null, true, false)) {
+            Spike.log("helper: " + (map == null ? "no map app is installed" : "opening the map app is switched off in Settings") + "; opening only the panel");
             openPanel(false);
             return;
         }
-        if (dividerBounds() != null) { Spike.log("helper: split-screen already on"); handler.postDelayed(() -> moveDivider(s), 500); return; }
-        // First choice: the panel opens Google Maps beside itself, which makes the system split the screen. This works on
+        if (dividerBounds() != null) { Spike.log("helper: split-screen already on"); settleThenMove(-1f, 0, 0); return; }
+        // First choice: the panel opens the map app beside itself, which makes the system split the screen. This works on
         // units that refuse the toggle action below. If no split appears, fall back to the toggle.
         Spike.log("helper: opening the panel, which opens Google Maps beside itself");
         Intent beside = getPackageManager().getLaunchIntentForPackage(getPackageName());
@@ -81,13 +81,13 @@ public class SplitHelperService extends AccessibilityService {
     /** The older route: put one app in front, press the system's split-screen action, then open the other beside it. */
     private void toggleLayout(final Settings s) {
         final boolean panelFirst = "panel".equals(SplitPlan.firstApp(s.swapSides()));
-        Spike.log("helper: starting with " + (panelFirst ? "the panel" : "Google Maps") + " in the first slot");
+        Spike.log("helper: starting with " + (panelFirst ? "the panel" : "the map app") + " in the first slot");
         if (panelFirst) openPanel(false); else openMaps(false);
         handler.postDelayed(() -> {
             if (!toggleSplit()) { Spike.log("helper: the unit refused the split-screen action; leaving the first app full-screen"); return; }
             handler.postDelayed(() -> {
                 if (panelFirst) openMaps(true); else openPanel(true);
-                handler.postDelayed(() -> moveDivider(s), 1800);
+                settleThenMove(-1f, 0, 0);
             }, 1200);
         }, 1500);
     }
@@ -96,20 +96,64 @@ public class SplitHelperService extends AccessibilityService {
     void applyRatioWhenSplit() { waitForDivider(0); }
 
     private void waitForDivider(int tries) {
-        if (dividerBounds() != null) { handler.postDelayed(() -> moveDivider(Settings.of(this)), 600); return; }
+        if (dividerBounds() != null) { settleThenMove(-1f, 0, 0); return; }
         if (tries >= 12) { Spike.log("helper: no split appeared, so the ratio was not set"); return; }
         handler.postDelayed(() -> waitForDivider(tries + 1), 400);
     }
 
-    private void moveDivider(Settings s) {
+    /** The system animates the divider as the split opens: wait until two reads agree, so the drag starts on the divider itself. */
+    private void settleThenMove(float previous, int tries, int attempt) {
+        handler.postDelayed(() -> {
+            Rect d = dividerBounds();
+            if (d == null) { Spike.log("helper: the divider went away, so the ratio was not set"); return; }
+            Rect screen = screen();
+            float c = screen.width() >= screen.height() ? d.exactCenterX() : d.exactCenterY();
+            if (!SplitPlan.isSettled(previous, c) && tries < 12) { settleThenMove(c, tries + 1, attempt); return; }
+            moveDivider(Settings.of(this), attempt);
+        }, 500);
+    }
+
+    private void moveDivider(Settings s) { moveDivider(s, 0); }
+
+    private void moveDivider(Settings s, int attempt) {
         Rect screen = screen();
         float share = SplitMath.effective(s.mapShare(), screen.width(), getResources().getDisplayMetrics().density).mapShare;
-        float target = SplitPlan.dividerFraction(share, s.swapSides());
         Rect d = dividerBounds();
         if (d == null) { Spike.log("helper: no divider found, cannot set the ratio"); return; }
-        float now = screen.width() >= screen.height() ? d.exactCenterX() / screen.width() : d.exactCenterY() / screen.height();
+        boolean landscape = screen.width() >= screen.height();
+        // the unit decides which side the second app lands on, so the map's share goes to the side the map really is on
+        Boolean mapFirst = mapIsFirst(d, landscape);
+        boolean mapAtEnd = mapFirst == null ? s.swapSides() : !mapFirst;
+        float target = SplitPlan.dividerFraction(share, mapAtEnd);
+        float now = landscape ? d.exactCenterX() / screen.width() : d.exactCenterY() / screen.height();
+        Spike.log(String.format(java.util.Locale.US, "helper: map share %.0f%%, map is %s, divider at %.0f%% -> target %.0f%%",
+                share * 100, mapFirst == null ? "on an unknown side (using the swap setting)" : (mapFirst ? "first" : "last"), now * 100, target * 100));
         if (!SplitPlan.needsDrag(now, target)) { Spike.log(String.format(java.util.Locale.US, "helper: divider already near %.0f%%, leaving it", now * 100)); return; }
-        dragDivider(now, target, null);
+        // after the drag, check the divider really arrived; try once more if the first drag missed
+        dragDivider(now, target, attempt == 0 ? () -> settleThenMove(-1f, 0, 1) : null);
+    }
+
+    /** Moves the divider to the ratio right now when the screen is already split (used when Settings changes the ratio). */
+    void applyRatioIfSplit() {
+        if (dividerBounds() != null) settleThenMove(-1f, 0, 0);
+    }
+
+    /** Whether the map app's window is before the divider (left or top); null when its window cannot be found. */
+    private Boolean mapIsFirst(Rect divider, boolean landscape) {
+        String map = MapAppRepo.selected(this);
+        if (map == null) return null;
+        try {
+            for (AccessibilityWindowInfo w : getWindows()) {
+                android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
+                if (root == null) continue;
+                boolean mine = map.contentEquals(root.getPackageName() == null ? "" : root.getPackageName());
+                if (!mine) continue;
+                Rect r = new Rect();
+                w.getBoundsInScreen(r);
+                return SplitPlan.mapIsFirst(landscape ? r.exactCenterX() : r.exactCenterY(), landscape ? divider.exactCenterX() : divider.exactCenterY());
+            }
+        } catch (Exception e) { Spike.log("helper: could not find the map window (" + e.getClass().getSimpleName() + ")"); }
+        return null;
     }
 
     // ---- single steps (also used by SplitProbeActivity) ----
@@ -120,7 +164,11 @@ public class SplitHelperService extends AccessibilityService {
         return ok;
     }
 
-    void openMaps(boolean adjacent) { launch(MAPS, adjacent); }
+    void openMaps(boolean adjacent) {
+        String map = MapAppRepo.selected(this);
+        if (map == null) { Spike.log("helper: no map app to open"); return; }
+        launch(map, adjacent);
+    }
 
     void openPanel(boolean adjacent) { launch(getPackageName(), adjacent); }
 

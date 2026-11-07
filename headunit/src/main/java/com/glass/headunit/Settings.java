@@ -66,7 +66,11 @@ final class Settings {
     int lyricsSize() { return sp.getInt("lyricsSize", -1); }
     void setLyricsSize(int v) { sp.edit().putInt("lyricsSize", Math.max(-1, Math.min(3, v))).apply(); }
 
-    /** Open Google Maps beside the panel when the panel starts (on by default). */
+    /** The map app to open (a package name), or empty for automatic: Google Maps when it is installed, else the best navigation app. */
+    String mapApp() { return sp.getString("mapApp", ""); }
+    void setMapApp(String pkg) { sp.edit().putString("mapApp", pkg == null ? "" : pkg).apply(); }
+
+    /** Open the map app beside the panel when the panel starts (on by default); off launches only the panel. */
     boolean autoOpenMaps() { return sp.getBoolean("autoOpenMaps", true); }
     void setAutoOpenMaps(boolean v) { sp.edit().putBoolean("autoOpenMaps", v).apply(); }
 }
