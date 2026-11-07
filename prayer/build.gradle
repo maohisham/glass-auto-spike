@@ -1,0 +1,26 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.glass.prayer'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.glass.prayer'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '0.1-spike'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.car.app:app:1.4.0'
+    implementation 'androidx.core:core:1.12.0'
+}

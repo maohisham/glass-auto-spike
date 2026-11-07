@@ -1,0 +1,26 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.glass.aaspike'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.glass.aaspike'
+        minSdk 26
+        targetSdk 34
+        versionCode 3
+        versionName '0.3-card'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.media:media:1.7.0'
+    implementation 'androidx.core:core:1.12.0'
+}
