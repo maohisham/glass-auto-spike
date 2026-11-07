@@ -23,6 +23,7 @@ public class PanelActivity extends Activity {
     private android.widget.FrameLayout root;
     private PlayerPicker picker;
     private PrayerScreen prayerScreen;
+    private static boolean autoPlayScheduled;   // once per process (per panel start)
     private MediaFollower follower;
     private PanelController controller;
     private boolean demo;
@@ -76,6 +77,26 @@ public class PanelActivity extends Activity {
         boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         picker = new PlayerPicker(this, follower, PanelStyle.isDark(s.theme(), night), this::hidePicker);
         root.addView(picker, new android.widget.FrameLayout.LayoutParams(-1, -1));
+    }
+
+    /** Once per start: if the setting is on and nothing is playing after a few seconds, resume the last player. */
+    private void scheduleAutoPlay() {
+        if (autoPlayScheduled) return;
+        autoPlayScheduled = true;
+        final PlayerSwitcher switcher = new PlayerSwitcher(this, follower);
+        handler.postDelayed(() -> {
+            if (follower == null) return;
+            Settings s = Settings.of(this);
+            String pkg = s.lastPlayer();
+            boolean installed = false;
+            try { installed = !pkg.isEmpty() && getPackageManager().getApplicationInfo(pkg, 0).enabled; } catch (Exception ignored) { }
+            if (AutoPlayPolicy.shouldStart(s.autoPlayLast(), pkg, installed, follower.anyPlaying(), false)) {
+                Spike.log("auto-play: resuming " + pkg);
+                switcher.resume(pkg);
+            } else {
+                Spike.log("auto-play: not starting (setting " + (s.autoPlayLast() ? "on" : "off") + ", last player '" + pkg + "', playing " + follower.anyPlaying() + ")");
+            }
+        }, 5000);
     }
 
     private void showPrayer() {
@@ -132,6 +153,7 @@ public class PanelActivity extends Activity {
         });
         follower.start();
         controller.start();
+        scheduleAutoPlay();
         if (getIntent().getBooleanExtra(EXTRA_BESIDE, false)) {
             getIntent().removeExtra(EXTRA_BESIDE);
             handler.postDelayed(() -> panel.openMaps(), 800);
@@ -181,6 +203,6 @@ public class PanelActivity extends Activity {
         l.lines.addAll(Arrays.asList(lines));
         for (int i = 0; i < lines.length; i++) l.times.add(i * 3000L);
         return new NowPlaying("demo.player", "Demo", "Stay a while, we're parked", "Senja Sessions", true,
-                line * 3000L, 36000, l, false, line, true, true);
+                line * 3000L, 36000, l, false, line, true, true, null, "");
     }
 }

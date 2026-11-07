@@ -66,6 +66,13 @@ final class Icons {
                 c.drawPath(p, stroke);
                 break;
             }
+            case SEARCH: {
+                c.drawCircle(10.5f, 10.5f, 6.2f, stroke);
+                Path p = new Path();
+                p.moveTo(15.2f, 15.2f); p.lineTo(20, 20);
+                c.drawPath(p, stroke);
+                break;
+            }
             case SHUFFLE: {
                 Path p = new Path();
                 p.moveTo(3, 7); p.lineTo(6, 7);

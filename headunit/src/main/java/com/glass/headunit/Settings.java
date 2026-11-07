@@ -41,4 +41,16 @@ final class Settings {
     int bubbleY() { return sp.getInt("bubbleY", -1); }
     void setBubble(int x, int y) { sp.edit().putInt("bubbleX", x).putInt("bubbleY", y).apply(); }
     void resetBubble() { sp.edit().remove("bubbleX").remove("bubbleY").apply(); }
+
+    /** Resume the last player when the panel starts (off by default). */
+    boolean autoPlayLast() { return sp.getBoolean("autoPlayLast", false); }
+    void setAutoPlayLast(boolean v) { sp.edit().putBoolean("autoPlayLast", v).apply(); }
+
+    /** The package of the last player that was actually playing, or empty. */
+    String lastPlayer() { return sp.getString("lastPlayer", ""); }
+    void setLastPlayer(String pkg) { sp.edit().putString("lastPlayer", pkg == null ? "" : pkg).apply(); }
+
+    /** The driving score (uses the unit's GPS while the panel is open). On by default. */
+    boolean driveScore() { return sp.getBoolean("driveScore", true); }
+    void setDriveScore(boolean v) { sp.edit().putBoolean("driveScore", v).apply(); }
 }

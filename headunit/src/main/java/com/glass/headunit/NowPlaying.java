@@ -12,10 +12,12 @@ final class NowPlaying {
     final boolean lyricsLoading;
     final int line;            // index into lyrics.lines, -1 before the first line
     final boolean shuffleAvailable, shuffleOn;
+    final android.graphics.Bitmap cover;   // small album cover, or null
+    final String coverId;                   // changes when the cover does (for change detection)
 
     NowPlaying(String pkg, String playerLabel, String title, String artist, boolean playing,
                long positionMs, long durationMs, Lyrics lyrics, boolean lyricsLoading, int line,
-               boolean shuffleAvailable, boolean shuffleOn) {
+               boolean shuffleAvailable, boolean shuffleOn, android.graphics.Bitmap cover, String coverId) {
         this.pkg = pkg;
         this.playerLabel = playerLabel;
         this.title = title;
@@ -28,12 +30,14 @@ final class NowPlaying {
         this.line = line;
         this.shuffleAvailable = shuffleAvailable;
         this.shuffleOn = shuffleOn;
+        this.cover = cover;
+        this.coverId = coverId == null ? "" : coverId;
     }
 
-    static NowPlaying idle() { return new NowPlaying(null, "", "", "", false, 0, 0, null, false, -1, false, false); }
+    static NowPlaying idle() { return new NowPlaying(null, "", "", "", false, 0, 0, null, false, -1, false, false, null, ""); }
 
     /** What the panel would draw differently: used to avoid redrawing when nothing visible changed. */
     String key() {
-        return pkg + "|" + title + "|" + artist + "|" + playing + "|" + lyricsLoading + "|" + (lyrics != null) + "|" + line + "|" + shuffleAvailable + "|" + shuffleOn;
+        return pkg + "|" + title + "|" + artist + "|" + playing + "|" + lyricsLoading + "|" + (lyrics != null) + "|" + line + "|" + shuffleAvailable + "|" + shuffleOn + "|" + coverId;
     }
 }

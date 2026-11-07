@@ -56,6 +56,9 @@ public class SettingsActivity extends Activity {
 
         root.addView(toggle("Panel on the left, map on the right", s.swapSides(), s::setSwapSides));
 
+        root.addView(heading("Music"));
+        root.addView(toggle("Auto-play the last player when the panel starts", s.autoPlayLast(), s::setAutoPlayLast));
+
         root.addView(heading("Prayer zone"));
         zoneRow = new TextView(this);
         root.addView(zoneRow);

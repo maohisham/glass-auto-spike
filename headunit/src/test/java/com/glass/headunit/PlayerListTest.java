@@ -44,4 +44,24 @@ public class PlayerListTest {
     public void emptyListGivesAnEmptyList() {
         assertTrue(PlayerList.order(new ArrayList<>()).isEmpty());
     }
+
+    @Test
+    public void splitPutsKnownAndActivePlayersFirstAndTheRestUnderMore() {
+        List<String[]> in = new ArrayList<>();
+        in.add(p("com.google.android.googlequicksearchbox", "Google"));
+        in.add(p("com.spotify.music", "Spotify"));
+        in.add(p("com.android.bluetooth", "Bluetooth"));
+        in.add(p("org.local", "Local Music"));
+        in.add(p("com.ilv.vradio", "VRadio"));
+        java.util.Set<String> active = new java.util.HashSet<>();
+        active.add("org.local");   // has a live media session right now
+        PlayerList.Split s = PlayerList.split(in, active);
+        assertEquals("com.spotify.music", s.main.get(0)[0]);
+        assertEquals("com.ilv.vradio", s.main.get(1)[0]);
+        assertEquals("org.local", s.main.get(2)[0]);        // active but not a named player: after the named ones
+        assertEquals(3, s.main.size());
+        assertEquals("Bluetooth", s.more.get(0)[1]);         // the rest, alphabetical
+        assertEquals("Google", s.more.get(1)[1]);
+        assertEquals(2, s.more.size());
+    }
 }

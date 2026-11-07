@@ -1,6 +1,9 @@
 package com.glass.headunit;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
 import android.media.session.PlaybackState;
@@ -36,10 +39,18 @@ final class MediaFollower {
     private long lastPos, lastPosAt;      // the position we last published and when, to notice a seek
     private boolean lastPlaying;
     private boolean started;
+    private Bitmap cover;
+    private String coverId = "", coverLoading = "";
+    private String lastRecorded = "";
+    private NowPlaying lastDelivered;
     private long switchLockUntil;   // while set, do not jump back to the player we are switching away from
 
     private final MediaController.Callback mirror = new MediaController.Callback() {
-        @Override public void onMetadataChanged(MediaMetadata m) { trackMaybeChanged(); publish(); }
+        @Override public void onMetadataChanged(MediaMetadata m) {
+            trackMaybeChanged();
+            if (cover == null && target != null) refreshCover(target.getMetadata()); // art often arrives a moment after the title
+            publish();
+        }
         @Override public void onPlaybackStateChanged(PlaybackState s) { publish(); }
         @Override public void onSessionDestroyed() { detach(); publish(); }
     };
@@ -128,6 +139,9 @@ final class MediaFollower {
         }
         target = null;
         compat = null;
+        cover = null;
+        coverId = "";
+        coverLoading = "";
         trackKey = "";
         lyrics = null;
         lyricsLoading = false;
@@ -160,7 +174,11 @@ final class MediaFollower {
         trackKey = key;
         lyrics = null;
         shownLine = -1;
+        cover = null;
+        coverId = "";
+        coverLoading = "";
         final int gen = ++generation;
+        refreshCover(m);
         if (title.isEmpty() || Proxy.VRADIO.equals(target.getPackageName())) { lyricsLoading = false; return; }
         History.record(ctx, target.getPackageName(), title, artist);
         lyricsLoading = true;
@@ -179,6 +197,57 @@ final class MediaFollower {
         }, "lyrics").start();
     }
 
+    /** True when what we last told the panel says something is playing. */
+    boolean anyPlaying() { return lastDelivered != null && lastDelivered.playing; }
+
+    /** The small cover for the current track: a bitmap the player gave us, else one fetched from its picture address off the main thread. */
+    private void refreshCover(MediaMetadata m) {
+        if (m == null) return;
+        Bitmap b = null;
+        for (String k : new String[]{MediaMetadata.METADATA_KEY_ALBUM_ART, MediaMetadata.METADATA_KEY_ART, MediaMetadata.METADATA_KEY_DISPLAY_ICON}) {
+            b = m.getBitmap(k);
+            if (b != null) break;
+        }
+        if (b != null) {
+            cover = scaled(b);
+            coverId = "bmp:" + System.identityHashCode(b);
+            return;
+        }
+        final String uri = CoverPick.firstUri(m.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI),
+                m.getString(MediaMetadata.METADATA_KEY_ART_URI), m.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI));
+        if (uri == null || uri.equals(coverId) || uri.equals(coverLoading)) return;
+        coverLoading = uri;
+        final int gen = generation;
+        new Thread(() -> {
+            Bitmap bm = null;
+            try {
+                java.io.InputStream in;
+                if (uri.startsWith("http")) {
+                    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(uri).openConnection();
+                    c.setConnectTimeout(6000);
+                    c.setReadTimeout(6000);
+                    in = c.getInputStream();
+                } else {
+                    in = ctx.getContentResolver().openInputStream(Uri.parse(uri));
+                }
+                if (in != null) { try { bm = BitmapFactory.decodeStream(in); } finally { in.close(); } }
+            } catch (Exception e) { Spike.log("cover: could not load (" + e.getClass().getSimpleName() + ")"); }
+            final Bitmap result = bm == null ? null : scaled(bm);
+            handler.post(() -> {
+                if (gen != generation) return;       // the track changed while we waited
+                coverLoading = "";
+                if (result != null) { cover = result; coverId = uri; publish(); }
+            });
+        }, "cover").start();
+    }
+
+    private static Bitmap scaled(Bitmap b) {
+        Bitmap src = b.getConfig() == Bitmap.Config.HARDWARE ? b.copy(Bitmap.Config.ARGB_8888, false) : b;
+        if (src == null) return null;
+        int[] sz = CoverPick.targetSize(src.getWidth(), src.getHeight(), 256);
+        return sz[0] == src.getWidth() && sz[1] == src.getHeight() ? src : Bitmap.createScaledBitmap(src, sz[0], sz[1], true);
+    }
+
     private void publish() {
         NowPlaying n = snapshot();
         String key = n.key();
@@ -189,6 +258,12 @@ final class MediaFollower {
         lastPos = n.positionMs;
         lastPosAt = at;
         lastPlaying = n.playing;
+        lastDelivered = n;
+        // remember which player was actually playing, for auto-play next time
+        if (n.pkg != null && n.playing && !n.pkg.equals(lastRecorded)) {
+            lastRecorded = n.pkg;
+            Settings.of(ctx).setLastPlayer(n.pkg);
+        }
         listener.onChanged(n);
     }
 
@@ -205,6 +280,6 @@ final class MediaFollower {
         boolean shuffleAvailable = ControlsPolicy.showShuffle(target.getPackageName(), ps == null ? 0 : ps.getActions());
         boolean shuffleOn = shuffleAvailable && compat != null && compat.getShuffleMode() > 0;
         return new NowPlaying(target.getPackageName(), Proxy.label(ctx, target.getPackageName()), title, artist,
-                isPlaying(target), pos, dur, lyrics, lyricsLoading, line, shuffleAvailable, shuffleOn);
+                isPlaying(target), pos, dur, lyrics, lyricsLoading, line, shuffleAvailable, shuffleOn, cover, coverId);
     }
 }

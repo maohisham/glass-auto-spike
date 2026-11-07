@@ -42,7 +42,8 @@ final class PanelView extends LinearLayout {
     private NowPlaying now = NowPlaying.idle();
     private long nowReceivedAt;
 
-    private LinearLayout headerBlock, stripBox, banners, nowBox, mediaRow, actionsRow, progRow, lyricList, idleBox;
+    private LinearLayout headerBlock, topRow, stripBox, banners, nowBox, songRow, mediaRow, progRow, lyricList, idleBox;
+    private CoverView coverView;
     private MaxHeightScrollView headerScroll;
     private TextView weatherText, prayerText, title, artist, bigText, header, elapsedText, durationText, idleNote;
     private IconView shuffleBtn, prevBtn, mainBtn, nextBtn;
@@ -158,6 +159,19 @@ final class PanelView extends LinearLayout {
         headerScroll.setMaxHeightPx(PanelStyle.headerMaxPx(getHeight()));
         addView(headerScroll, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
+        // top row: the three round shortcuts (the driving score chip joins them on the right)
+        topRow = new LinearLayout(getContext());
+        topRow.setOrientation(HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
+        topRow.setPadding(0, 0, 0, dp(10));
+        boolean firstIcon = true;
+        if (onPlayer != null) { topRow.addView(icon(Icon.PLAYER, "Choose a player", 44, IconView.Style.NORMAL, () -> onPlayer.run()), gapped(0)); firstIcon = false; }
+        if (onSettings != null) { topRow.addView(icon(Icon.SETTINGS, "Settings", 44, IconView.Style.NORMAL, () -> onSettings.run()), gapped(firstIcon ? 0 : 12)); firstIcon = false; }
+        if (mapsInstalled()) { topRow.addView(icon(Icon.MAPS, "Open Maps", 44, IconView.Style.NORMAL, this::openMaps), gapped(firstIcon ? 0 : 12)); }
+        topRow.addView(new View(getContext()), new LayoutParams(0, 1, 1f));
+        topRow.setVisibility(topRow.getChildCount() <= 1 ? GONE : VISIBLE);
+        headerBlock.addView(topRow);
+
         // prayer strip: tap for the full table
         stripBox = new LinearLayout(getContext());
         stripBox.setOrientation(mode == PanelMode.COMPACT ? VERTICAL : HORIZONTAL);
@@ -191,8 +205,19 @@ final class PanelView extends LinearLayout {
         artist = text(15, false, dim);
         artist.setMaxLines(1);
         artist.setEllipsize(TextUtils.TruncateAt.END);
-        nowBox.addView(title);
-        nowBox.addView(artist);
+        songRow = new LinearLayout(getContext());
+        songRow.setOrientation(HORIZONTAL);
+        songRow.setGravity(Gravity.CENTER_VERTICAL);
+        coverView = new CoverView(getContext(), dark, Math.round(60 * (mode == PanelMode.COMPACT ? 0.92f : 1f)));
+        songRow.addView(coverView);
+        LinearLayout words = new LinearLayout(getContext());
+        words.setOrientation(VERTICAL);
+        words.addView(title);
+        words.addView(artist);
+        LayoutParams wl = new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
+        wl.leftMargin = dp(12);
+        songRow.addView(words, wl);
+        nowBox.addView(songRow);
 
         // progress: elapsed, bar with a knob, length
         progRow = new LinearLayout(getContext());
@@ -227,17 +252,6 @@ final class PanelView extends LinearLayout {
         mediaRow.addView(shuffleSpacer, new LayoutParams(Glass.dp(getContext(), iconDp(42)) + dp(10), 1));
         nowBox.addView(mediaRow);
 
-        // shortcuts
-        actionsRow = new LinearLayout(getContext());
-        actionsRow.setOrientation(HORIZONTAL);
-        actionsRow.setGravity(Gravity.CENTER);
-        actionsRow.setPadding(0, dp(10), 0, 0);
-        boolean first = true;
-        if (onPlayer != null) { actionsRow.addView(icon(Icon.PLAYER, "Choose a player", 44, IconView.Style.NORMAL, () -> onPlayer.run()), gapped(first ? 0 : 14)); first = false; }
-        if (onSettings != null) { actionsRow.addView(icon(Icon.SETTINGS, "Settings", 44, IconView.Style.NORMAL, () -> onSettings.run()), gapped(first ? 0 : 14)); first = false; }
-        if (mapsInstalled()) { actionsRow.addView(icon(Icon.MAPS, "Open Maps", 44, IconView.Style.NORMAL, this::openMaps), gapped(first ? 0 : 14)); }
-        actionsRow.setVisibility(actionsRow.getChildCount() == 0 ? GONE : VISIBLE);
-        nowBox.addView(actionsRow);
         headerBlock.addView(nowBox);
 
         scroll = new ScrollView(getContext());
@@ -342,6 +356,8 @@ final class PanelView extends LinearLayout {
 
     private void bindNow() {
         boolean idle = now.pkg == null;
+        coverView.setCover(now.cover);
+        coverView.setVisibility(idle ? GONE : VISIBLE);
         mainBtn.setIcon(now.playing ? Icon.PAUSE : Icon.PLAY);
         mainBtn.setContentDescription(now.playing ? "Pause" : "Play");
         boolean showShuffle = !idle && now.shuffleAvailable;
@@ -386,13 +402,11 @@ final class PanelView extends LinearLayout {
             return;
         }
         if (!haveLyrics) {
-            // no lyrics (yet): the song itself, large, with the controls above
-            title.setVisibility(GONE);
-            artist.setVisibility(GONE);
-            bigText.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(30));
-            bigText.setText((now.title.isEmpty() ? now.playerLabel : now.title)
-                    + (now.artist.isEmpty() ? "" : "\n" + now.artist)
-                    + (now.lyricsLoading ? "\n\nFinding lyrics…" : ""));
+            // no lyrics (yet): the song stays up top with its cover, and the space says what is going on
+            title.setVisibility(VISIBLE);
+            artist.setVisibility(artist.getText().length() == 0 ? GONE : VISIBLE);
+            bigText.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(24));
+            bigText.setText(now.lyricsLoading ? "Finding lyrics…" : "No lyrics for this track");
             return;
         }
         title.setVisibility(VISIBLE);

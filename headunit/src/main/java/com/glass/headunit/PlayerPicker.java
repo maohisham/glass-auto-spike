@@ -1,11 +1,20 @@
 package com.glass.headunit;
 
 import android.content.Context;
+import android.graphics.Outline;
+import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.support.v4.media.MediaBrowserCompat;
 import android.text.InputType;
+import android.text.TextUtils;
+import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.View;
+import android.view.ViewOutlineProvider;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -14,22 +23,26 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Shown over the panel (or in the bubble's overlay): pick a player, browse its library where it allows that, search
- * for a song, or replay a recent one. Built from plain views.
+ * Shown over the panel (or in the bubble's overlay): pick a player from round-cornered cards with their app icons, then
+ * search for a song, replay a recent one, or browse the player's library where it allows that. Tapping a card starts
+ * that player and keeps the list open so the next step is one tap away.
  */
 final class PlayerPicker extends LinearLayout {
+
+    private enum Tab { SEARCH, RECENT, LIBRARY }
 
     private final Context ctx;
     private final MediaFollower follower;
     private final PlayerSwitcher switcher;
     private final Runnable onClose;
     private final boolean dark;
-    private final LinearLayout content;
-    private final TextView heading;
-    private final Button back;
-    private final List<String> stack = new ArrayList<>();   // parent ids of the browse pages, null = a player's root
-    private String browsingPkg;
-    private String notice;       // one-off message at the top of the main page, e.g. after a failed check
+    private final LinearLayout cards, moreCards, tabs, content;
+    private final Button moreToggle;
+    private final List<String> stack = new ArrayList<>();   // parent ids of the library pages, null = the player's root
+    private String selectedPkg, selectedLabel = "";
+    private Tab tab = Tab.SEARCH;
+    private boolean moreOpen;
+    private boolean browsing;
 
     PlayerPicker(Context ctx, MediaFollower followerOrNull, boolean dark, Runnable onClose) {
         super(ctx);
@@ -40,137 +53,250 @@ final class PlayerPicker extends LinearLayout {
         this.dark = dark;
         setOrientation(VERTICAL);
         setBackground(new GlassBackground(dark));
-        setPadding(24, 24, 24, 24);
+        int pad = Glass.dp(ctx, 16);
+        setPadding(pad, pad, pad, pad);
         setClickable(true); // swallow touches so the panel below is not pressed through it
 
         LinearLayout head = new LinearLayout(ctx);
         head.setOrientation(HORIZONTAL);
-        back = button("Back", this::goBack);
-        back.setVisibility(GONE);
-        head.addView(back);
-        heading = text("Players", 20, true);
-        heading.setGravity(Gravity.CENTER_VERTICAL);
-        head.addView(heading, new LayoutParams(0, LayoutParams.MATCH_PARENT, 1f));
-        head.addView(button("Close", () -> this.onClose.run()));
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(new IconView(ctx, Icon.BACK, "Back", dark, 44, IconView.Style.NORMAL, () -> { if (!handleBack()) onClose.run(); }));
+        TextView title = label("Players", 20, true, PanelStyle.fg(dark));
+        LayoutParams tp = new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
+        tp.leftMargin = Glass.dp(ctx, 12);
+        head.addView(title, tp);
         addView(head);
+
+        cards = new LinearLayout(ctx);
+        cards.setOrientation(HORIZONTAL);
+        HorizontalScrollView cardScroll = new HorizontalScrollView(ctx);
+        cardScroll.setHorizontalScrollBarEnabled(false);
+        cardScroll.addView(cards);
+        LayoutParams cl = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        cl.topMargin = Glass.dp(ctx, 12);
+        addView(cardScroll, cl);
+
+        moreToggle = pill("More apps", false, () -> { moreOpen = !moreOpen; refreshPlayers(); });
+        moreCards = new LinearLayout(ctx);
+        moreCards.setOrientation(HORIZONTAL);
+        HorizontalScrollView moreScroll = new HorizontalScrollView(ctx);
+        moreScroll.setHorizontalScrollBarEnabled(false);
+        moreScroll.addView(moreCards);
+        LinearLayout moreBox = new LinearLayout(ctx);
+        moreBox.setOrientation(VERTICAL);
+        moreBox.addView(moreToggle, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+        moreBox.addView(moreScroll, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        LayoutParams ml = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        ml.topMargin = Glass.dp(ctx, 8);
+        addView(moreBox, ml);
+
+        tabs = new LinearLayout(ctx);
+        tabs.setOrientation(HORIZONTAL);
+        LayoutParams tl = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        tl.topMargin = Glass.dp(ctx, 14);
+        addView(tabs, tl);
 
         content = new LinearLayout(ctx);
         content.setOrientation(VERTICAL);
         ScrollView sv = new ScrollView(ctx);
+        sv.setVerticalScrollBarEnabled(false);
         sv.addView(content);
-        addView(sv, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
-        showMain();
+        LayoutParams sl = new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f);
+        sl.topMargin = Glass.dp(ctx, 10);
+        addView(sv, sl);
+
+        if (follower != null && follower.controller() != null) selectedPkg = follower.controller().getPackageName();
+        refreshPlayers();
+        showTab(Tab.SEARCH);
     }
 
-    /** Back inside the browse pages; false when already on the main page (so the caller can close the picker). */
+    /** Back inside the library pages; false when already at the top (so the caller can close the picker). */
     boolean handleBack() {
-        if (browsingPkg == null) return false;
+        if (!browsing || stack.size() <= 1) return false;
         goBack();
         return true;
     }
 
-    // ---- main page ----
+    // ---- players ----
 
-    private void showMain() {
-        browsingPkg = null;
-        stack.clear();
-        back.setVisibility(GONE);
-        heading.setText("Players");
-        content.removeAllViews();
-        if (notice != null) { content.addView(text(notice, 14, false)); notice = null; }
-
-        String current = follower != null && follower.controller() != null ? follower.controller().getPackageName() : null;
-        List<String[]> players = PlayerList.order(Proxy.players(ctx));
-        if (players.isEmpty()) content.addView(text("No media apps found on this unit.", 16, false));
-        for (final String[] p : players) {
-            LinearLayout row = new LinearLayout(ctx);
-            row.setOrientation(HORIZONTAL);
-            Button pick = button((p[0].equals(current) ? "● " : "") + p[1], () -> {
-                switcher.switchTo(p[0]);
-                onClose.run();
-            });
-            row.addView(pick, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
-            int status = BrowseStatus.get(ctx, p[0]);
-            if (status == BrowseStatus.ALLOWED) row.addView(button("Browse", () -> browse(p[0], p[1], null)));
-            else if (status == BrowseStatus.UNKNOWN) row.addView(button("Check browse", () -> probe(p[0], p[1])));
-            content.addView(row);
-            if (status == BrowseStatus.REFUSED) {
-                content.addView(text("   " + p[1] + " keeps its library closed: use search or recent below.", 13, false));
-                content.addView(button("Check " + p[1] + " again", () -> probe(p[0], p[1])));
-            }
+    private void refreshPlayers() {
+        List<String[]> all = Proxy.players(ctx);
+        PlayerList.Split split = PlayerList.split(all, Proxy.activePackages(ctx));
+        if (selectedPkg == null && !split.main.isEmpty()) selectedPkg = split.main.get(0)[0];
+        cards.removeAllViews();
+        moreCards.removeAllViews();
+        if (split.main.isEmpty() && split.more.isEmpty()) {
+            cards.addView(label("No media apps found on this unit.", 15, false, PanelStyle.dim(dark)));
         }
+        for (String[] p : split.main) cards.addView(card(p[0], p[1]));
+        for (String[] p : split.more) {
+            if (p[0].equals(selectedPkg)) selectedLabel = p[1];
+            moreCards.addView(card(p[0], p[1]));
+        }
+        for (String[] p : split.main) if (p[0].equals(selectedPkg)) selectedLabel = p[1];
+        ((View) moreToggle.getParent()).setVisibility(split.more.isEmpty() ? GONE : VISIBLE);
+        moreCards.setVisibility(moreOpen ? VISIBLE : GONE);
+        ((View) moreCards.getParent()).setVisibility(moreOpen ? VISIBLE : GONE);
+        moreToggle.setText(moreOpen ? "Fewer apps" : "More apps (" + split.more.size() + ")");
+        ((View) moreToggle.getParent()).setVisibility(split.more.isEmpty() ? GONE : VISIBLE);
+    }
 
-        content.addView(text("Search and play", 18, true));
+    private View card(final String pkg, final String name) {
+        boolean selected = pkg.equals(selectedPkg);
+        LinearLayout c = new LinearLayout(ctx);
+        c.setOrientation(VERTICAL);
+        c.setGravity(Gravity.CENTER_HORIZONTAL);
+        int pad = Glass.dp(ctx, 10);
+        c.setPadding(pad, pad, pad, pad);
+        c.setBackground(Glass.button(ctx, dark, false, selected, 16));
+        c.setClickable(true);
+        c.setContentDescription(name);
+        c.setOnClickListener(v -> selectPlayer(pkg, name));
+        c.addView(appIcon(pkg, 44), new LayoutParams(Glass.dp(ctx, 44), Glass.dp(ctx, 44)));
+        TextView t = label(name, 12, selected, PanelStyle.fg(dark));
+        t.setGravity(Gravity.CENTER);
+        t.setSingleLine();
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        LayoutParams tl = new LayoutParams(Glass.dp(ctx, 76), LayoutParams.WRAP_CONTENT);
+        tl.topMargin = Glass.dp(ctx, 6);
+        c.addView(t, tl);
+        LayoutParams lp = new LayoutParams(Glass.dp(ctx, 98), LayoutParams.WRAP_CONTENT);
+        lp.rightMargin = Glass.dp(ctx, 8);
+        c.setLayoutParams(lp);
+        return c;
+    }
+
+    /** Tapping a card starts that player and keeps the list open, so searching in it is the next tap. */
+    private void selectPlayer(String pkg, String name) {
+        boolean changed = !pkg.equals(selectedPkg);
+        selectedPkg = pkg;
+        selectedLabel = name;
+        if (changed || follower == null || follower.controller() == null || !pkg.equals(follower.controller().getPackageName())) switcher.switchTo(pkg);
+        refreshPlayers();
+        showTab(tab);
+    }
+
+    // ---- tabs ----
+
+    private void showTab(Tab t) {
+        tab = t;
+        browsing = false;
+        stack.clear();
+        tabs.removeAllViews();
+        tabs.addView(pill("Search", t == Tab.SEARCH, () -> showTab(Tab.SEARCH)), tabParams(0));
+        tabs.addView(pill("Recent", t == Tab.RECENT, () -> showTab(Tab.RECENT)), tabParams(8));
+        tabs.addView(pill("Library", t == Tab.LIBRARY, () -> showTab(Tab.LIBRARY)), tabParams(8));
+        content.removeAllViews();
+        if (t == Tab.SEARCH) showSearch();
+        else if (t == Tab.RECENT) showRecent();
+        else showLibrary();
+    }
+
+    private LayoutParams tabParams(int leftDp) {
+        LayoutParams lp = new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
+        lp.leftMargin = Glass.dp(ctx, leftDp);
+        return lp;
+    }
+
+    private void showSearch() {
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
         final EditText q = new EditText(ctx);
         q.setHint("Song or artist");
         q.setSingleLine();
         q.setInputType(InputType.TYPE_CLASS_TEXT);
+        q.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
         q.setTextColor(PanelStyle.fg(dark));
         q.setHintTextColor(PanelStyle.dim(dark));
-        content.addView(q);
-        content.addView(button("Search and play in " + (current == null ? "the first player" : Proxy.label(ctx, current)), () -> {
+        q.setBackground(Glass.button(ctx, dark, false, false, 16));
+        int pad = Glass.dp(ctx, 14);
+        q.setPadding(pad, pad, pad, pad);
+        row.addView(q, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+        final Runnable go = () -> {
             String query = q.getText().toString().trim();
-            if (query.isEmpty()) return;
-            String pkg = current != null ? current : (players.isEmpty() ? null : players.get(0)[0]);
-            if (pkg == null) return;
-            switcher.playSong(pkg, query, "");
+            if (query.isEmpty() || selectedPkg == null) return;
+            switcher.playSong(selectedPkg, query, "");
             onClose.run();
-        }));
+        };
+        IconView search = new IconView(ctx, Icon.SEARCH, "Search and play", dark, 48, IconView.Style.MAIN, go);
+        LayoutParams sp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        sp.leftMargin = Glass.dp(ctx, 10);
+        row.addView(search, sp);
+        q.setOnEditorActionListener((v, actionId, e) -> { go.run(); return true; });
+        content.addView(row);
+        content.addView(label(selectedPkg == null ? "Pick a player above." : "Plays in " + selectedLabel + ". Say the song or artist with the keyboard's microphone.", 13, false, PanelStyle.dim(dark)),
+                gapParams(10));
+    }
 
-        List<History.Entry> recent = History.recent(ctx, 12);
-        content.addView(text("Recent", 18, true));
-        if (recent.isEmpty()) content.addView(text("Songs you play will show up here.", 13, false));
+    private void showRecent() {
+        List<History.Entry> recent = History.recent(ctx, 25);
+        if (recent.isEmpty()) {
+            content.addView(label("Songs you play will show up here.", 14, false, PanelStyle.dim(dark)));
+            return;
+        }
         for (final History.Entry e : recent) {
-            content.addView(button(e.title + (e.artist.isEmpty() ? "" : " — " + e.artist), () -> {
-                switcher.playSong(e.pkg, e.title, e.artist);
-                onClose.run();
-            }));
+            content.addView(row(e.title, e.artist, e.pkg, () -> { switcher.playSong(e.pkg, e.title, e.artist); onClose.run(); }), gapParams(8));
         }
     }
 
-    // ---- browse pages ----
+    // ---- library ----
 
-    private void probe(final String pkg, final String label) {
+    private void showLibrary() {
+        if (selectedPkg == null) { content.addView(label("Pick a player above.", 14, false, PanelStyle.dim(dark))); return; }
+        int status = BrowseStatus.get(ctx, selectedPkg);
+        if (status == BrowseStatus.ALLOWED) { browse(selectedPkg, selectedLabel, null); return; }
+        if (status == BrowseStatus.REFUSED) {
+            content.addView(label(selectedLabel + " keeps its library closed to other apps. Use Search or Recent instead.", 14, false, PanelStyle.dim(dark)));
+            content.addView(Glass.textButton(ctx, "Check again", dark, () -> probe(selectedPkg, selectedLabel)), gapParams(10));
+            return;
+        }
+        probe(selectedPkg, selectedLabel);
+    }
+
+    private void probe(final String pkg, final String name) {
         content.removeAllViews();
-        content.addView(text("Checking whether " + label + " lets us browse…", 16, false));
+        content.addView(label("Checking whether " + name + " lets us browse…", 14, false, PanelStyle.dim(dark)));
         BrowseProbe.load(ctx, pkg, null, (items, error) -> {
             int verdict = BrowseStatus.fromError(error);
             BrowseStatus.set(ctx, pkg, verdict);
-            if (error == null) { showItems(pkg, label, null, items); return; }
-            if (verdict == BrowseStatus.UNKNOWN) notice = "Could not check " + label + " (" + error + "). Try again in a moment.";
-            showMain();
+            if (!pkg.equals(selectedPkg) || tab != Tab.LIBRARY) return;     // the user moved on
+            content.removeAllViews();
+            if (error == null) { stack.clear(); showItems(pkg, name, null, items); return; }
+            if (verdict == BrowseStatus.REFUSED) { showLibrary(); return; }
+            content.addView(label("Could not check " + name + " (" + error + ").", 14, false, PanelStyle.dim(dark)));
+            content.addView(Glass.textButton(ctx, "Try again", dark, () -> probe(pkg, name)), gapParams(10));
         });
     }
 
-    private void browse(final String pkg, final String label, final String parentId) {
+    private void browse(final String pkg, final String name, final String parentId) {
         content.removeAllViews();
-        content.addView(text("Loading…", 16, false));
+        content.addView(label("Loading…", 14, false, PanelStyle.dim(dark)));
         BrowseProbe.load(ctx, pkg, parentId, (items, error) -> {
+            if (!pkg.equals(selectedPkg) || tab != Tab.LIBRARY) return;
+            content.removeAllViews();
             if (error != null) {
-                int verdict = BrowseStatus.fromError(error);
-                if (verdict == BrowseStatus.REFUSED) BrowseStatus.set(ctx, pkg, verdict);
-                else notice = "Could not load that list (" + error + "). Try again.";
-                showMain();
+                if (BrowseStatus.fromError(error) == BrowseStatus.REFUSED) BrowseStatus.set(ctx, pkg, BrowseStatus.REFUSED);
+                content.addView(label("Could not load that list (" + error + ").", 14, false, PanelStyle.dim(dark)));
+                content.addView(Glass.textButton(ctx, "Try again", dark, () -> browse(pkg, name, parentId)), gapParams(10));
                 return;
             }
-            showItems(pkg, label, parentId, items);
+            showItems(pkg, name, parentId, items);
         });
     }
 
-    private void showItems(final String pkg, final String label, String parentId, List<MediaBrowserCompat.MediaItem> items) {
-        if (browsingPkg == null || stack.isEmpty() || !java.util.Objects.equals(stack.get(stack.size() - 1), parentId)) stack.add(parentId);
-        browsingPkg = pkg;
-        back.setVisibility(VISIBLE);
-        heading.setText(label);
+    private void showItems(final String pkg, final String name, String parentId, List<MediaBrowserCompat.MediaItem> items) {
+        if (stack.isEmpty() || !java.util.Objects.equals(stack.get(stack.size() - 1), parentId)) stack.add(parentId);
+        browsing = true;
         content.removeAllViews();
-        if (items.isEmpty()) content.addView(text("Nothing here.", 16, false));
+        if (items.isEmpty()) content.addView(label("Nothing here.", 14, false, PanelStyle.dim(dark)));
         for (final MediaBrowserCompat.MediaItem it : items) {
-            CharSequence t = it.getDescription().getTitle();
-            String name = t == null ? "(untitled)" : t.toString();
+            CharSequence t = it.getDescription().getTitle(), sub = it.getDescription().getSubtitle();
+            String title = t == null ? "(untitled)" : t.toString();
             if (it.isBrowsable()) {
-                content.addView(button(name + "  ›", () -> browse(pkg, label, it.getMediaId())));
+                content.addView(row(title, sub == null ? "" : sub.toString(), null, () -> browse(pkg, name, it.getMediaId())), gapParams(8));
             } else {
-                content.addView(button(name, () -> { switcher.playItem(pkg, it.getMediaId()); onClose.run(); }));
+                content.addView(row(title, sub == null ? "" : sub.toString(), null, () -> { switcher.playItem(pkg, it.getMediaId()); onClose.run(); }), gapParams(8));
             }
         }
     }
@@ -179,27 +305,82 @@ final class PlayerPicker extends LinearLayout {
         if (stack.size() > 1) {
             stack.remove(stack.size() - 1);
             String parent = stack.remove(stack.size() - 1);
-            browse(browsingPkg, heading.getText().toString(), parent);
-        } else {
-            showMain();
+            browse(selectedPkg, selectedLabel, parent);
         }
     }
 
     // ---- small view helpers ----
 
-    private TextView text(String s, float sp, boolean bold) {
+    private LayoutParams gapParams(int topDp) {
+        LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        lp.topMargin = Glass.dp(ctx, topDp);
+        return lp;
+    }
+
+    private TextView label(String s, float sp, boolean bold, int color) {
         TextView t = new TextView(ctx);
         t.setText(s);
-        t.setTextSize(sp);
-        t.setTextColor(PanelStyle.fg(dark));
-        t.setPadding(0, bold ? 24 : 8, 0, 8);
-        if (bold) t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+        t.setTypeface(Typeface.DEFAULT, bold ? Typeface.BOLD : Typeface.NORMAL);
+        t.setTextColor(color);
         return t;
     }
 
-    private Button button(String label, Runnable r) {
-        Button b = Glass.textButton(ctx, label, dark, r);
-        b.setMinHeight(Glass.dp(ctx, 52));
+    /** A rounded glass pill; lit with the accent when selected. */
+    private Button pill(String text, boolean selected, Runnable r) {
+        Button b = new Button(ctx);
+        b.setAllCaps(false);
+        b.setText(text);
+        b.setTextColor(selected ? PanelStyle.accent(dark) : PanelStyle.fg(dark));
+        b.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+        b.setBackground(Glass.button(ctx, dark, false, selected, 22));
+        b.setMinHeight(Glass.dp(ctx, 44));
+        b.setMinimumHeight(Glass.dp(ctx, 44));
+        b.setOnClickListener(v -> r.run());
         return b;
+    }
+
+    /** A glass row: optional app icon, a title and a quieter second line. */
+    private View row(String title, String subtitle, String iconPkg, Runnable onClick) {
+        LinearLayout r = new LinearLayout(ctx);
+        r.setOrientation(HORIZONTAL);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        int pad = Glass.dp(ctx, 12);
+        r.setPadding(pad, pad, pad, pad);
+        r.setBackground(Glass.button(ctx, dark, false, false, 14));
+        r.setClickable(true);
+        r.setOnClickListener(v -> onClick.run());
+        if (iconPkg != null) {
+            LayoutParams ip = new LayoutParams(Glass.dp(ctx, 36), Glass.dp(ctx, 36));
+            ip.rightMargin = Glass.dp(ctx, 12);
+            r.addView(appIcon(iconPkg, 36), ip);
+        }
+        LinearLayout words = new LinearLayout(ctx);
+        words.setOrientation(VERTICAL);
+        TextView t = label(title, 16, true, PanelStyle.fg(dark));
+        t.setMaxLines(2);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        words.addView(t);
+        if (subtitle != null && !subtitle.isEmpty()) {
+            TextView s = label(subtitle, 13, false, PanelStyle.dim(dark));
+            s.setSingleLine();
+            s.setEllipsize(TextUtils.TruncateAt.END);
+            words.addView(s);
+        }
+        r.addView(words, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+        return r;
+    }
+
+    private View appIcon(String pkg, int sizeDp) {
+        ImageView iv = new ImageView(ctx);
+        Drawable d = null;
+        try { d = ctx.getPackageManager().getApplicationIcon(pkg); } catch (Exception ignored) { }
+        iv.setImageDrawable(d);
+        final float radius = Glass.dp(ctx, sizeDp * 0.24f);
+        iv.setClipToOutline(true);
+        iv.setOutlineProvider(new ViewOutlineProvider() {
+            @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius); }
+        });
+        return iv;
     }
 }

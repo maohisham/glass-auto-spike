@@ -46,6 +46,16 @@ final class Proxy {
         }
     }
 
+    /** Packages that have a media session right now (empty when notification access is off). */
+    static java.util.Set<String> activePackages(Context ctx) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        try {
+            MediaSessionManager m = (MediaSessionManager) ctx.getSystemService(Context.MEDIA_SESSION_SERVICE);
+            for (MediaController c : m.getActiveSessions(new ComponentName(ctx, MediaListener.class))) out.add(c.getPackageName());
+        } catch (SecurityException ignored) { }
+        return out;
+    }
+
     /** The app's name for display, falling back to its package. */
     static String label(Context ctx, String pkg) {
         try {

@@ -33,4 +33,25 @@ final class PlayerList {
         });
         return out;
     }
+
+    /** The players to show up front, and everything else. */
+    static final class Split {
+        final List<String[]> main = new ArrayList<>();
+        final List<String[]> more = new ArrayList<>();
+    }
+
+    /** Up front: the named players in their order, then any other app with a live media session. The rest, alphabetical, go under "More apps". */
+    static Split split(List<String[]> all, java.util.Set<String> activePackages) {
+        Split s = new Split();
+        List<String[]> ordered = order(all);
+        List<String[]> activeOthers = new ArrayList<>(), rest = new ArrayList<>();
+        for (String[] p : ordered) {
+            if (isKnown(p[0], p[1])) s.main.add(p);
+            else if (activePackages != null && activePackages.contains(p[0])) activeOthers.add(p);
+            else rest.add(p);
+        }
+        s.main.addAll(activeOthers);
+        s.more.addAll(rest);
+        return s;
+    }
 }

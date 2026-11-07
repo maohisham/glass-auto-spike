@@ -25,11 +25,14 @@ final class PlayerSwitcher {
         this.follower = followerOrNull;
     }
 
-    void switchTo(String pkg) { switchTo(pkg, null); }
+    void switchTo(String pkg) { switchTo(pkg, null, true); }
+
+    /** Presses Play in that app so it carries on where it stopped. Never opens the app's own screen (that could cover Maps or the panel). */
+    void resume(String pkg) { switchTo(pkg, null, false); }
 
     /** Plays a song by asking that app to search for it: the only way in where its library is closed to us. */
     void playSong(String pkg, String title, String artist) {
-        switchTo(pkg, c -> handler.postDelayed(() -> {
+        switchTo(pkg, true, c -> handler.postDelayed(() -> {
             Bundle extras = new Bundle();
             extras.putString(android.provider.MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/audio");
             extras.putString(android.provider.MediaStore.EXTRA_MEDIA_TITLE, title);
@@ -41,13 +44,15 @@ final class PlayerSwitcher {
 
     /** Plays an item from that player's own browse list. */
     void playItem(String pkg, String mediaId) {
-        switchTo(pkg, c -> {
+        switchTo(pkg, true, c -> {
             c.getTransportControls().playFromMediaId(mediaId, null);
             Spike.log("asked " + pkg + " to play item " + mediaId);
         });
     }
 
-    private void switchTo(String pkg, Consumer<MediaController> then) {
+    private void switchTo(String pkg, boolean openScreen, Consumer<MediaController> then) { switchTo(pkg, then, openScreen); }
+
+    private void switchTo(String pkg, Consumer<MediaController> then, boolean openScreen) {
         MediaController current = follower != null ? follower.controller() : Proxy.findActive(ctx, null);
         if (current != null && !pkg.equals(current.getPackageName())) current.getTransportControls().pause();
         switchingTo = pkg;
@@ -55,7 +60,7 @@ final class PlayerSwitcher {
         MediaController c = Proxy.find(ctx, pkg);
         if (c != null) { arrived(c, then); return; }
         Proxy.wake(ctx, pkg, false);
-        waitFor(pkg, 0, then);
+        waitFor(pkg, 0, then, openScreen);
     }
 
     private void arrived(MediaController c, Consumer<MediaController> then) {
@@ -65,16 +70,16 @@ final class PlayerSwitcher {
         Spike.log("switch: now " + c.getPackageName());
     }
 
-    private void waitFor(String pkg, int seconds, Consumer<MediaController> then) {
+    private void waitFor(String pkg, int seconds, Consumer<MediaController> then, boolean openScreen) {
         if (!pkg.equals(switchingTo)) return; // another switch started
         MediaController c = Proxy.find(ctx, pkg);
         if (c != null) { arrived(c, then); return; }
-        if (seconds == 3) Proxy.wake(ctx, pkg, true);
+        if (openScreen && seconds == 3) Proxy.wake(ctx, pkg, true);
         if (seconds >= 15) {
             Spike.log("switch: " + pkg + " never started, open it once by hand");
             switchingTo = null;
             return;
         }
-        handler.postDelayed(() -> waitFor(pkg, seconds + 1, then), 1000);
+        handler.postDelayed(() -> waitFor(pkg, seconds + 1, then, openScreen), 1000);
     }
 }
