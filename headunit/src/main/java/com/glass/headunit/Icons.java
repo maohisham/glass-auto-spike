@@ -66,26 +66,6 @@ final class Icons {
                 c.drawPath(p, stroke);
                 break;
             }
-            case MOSQUE: {
-                Path dome = new Path();   // the main dome: a half circle on a short base
-                dome.moveTo(7, 20.5f); dome.lineTo(7, 16.5f);
-                dome.arcTo(new RectF(7, 10.5f, 17, 22.5f), 180, 180, false);
-                dome.lineTo(17, 20.5f);
-                c.drawPath(dome, stroke);
-                Path spire = new Path();
-                spire.moveTo(12, 10.6f); spire.lineTo(12, 8.2f);
-                c.drawPath(spire, stroke);
-                c.drawCircle(12f, 6.6f, 1.3f, fill);
-                for (float x : new float[]{3.4f, 20.6f}) {   // two minarets with pointed tops
-                    Path m = new Path();
-                    m.moveTo(x - 1.4f, 20.5f); m.lineTo(x - 1.4f, 10); m.lineTo(x, 6.8f); m.lineTo(x + 1.4f, 10); m.lineTo(x + 1.4f, 20.5f);
-                    c.drawPath(m, stroke);
-                }
-                Path ground = new Path();
-                ground.moveTo(1.5f, 20.5f); ground.lineTo(22.5f, 20.5f);
-                c.drawPath(ground, stroke);
-                break;
-            }
             case SEARCH: {
                 c.drawCircle(10.5f, 10.5f, 6.2f, stroke);
                 Path p = new Path();

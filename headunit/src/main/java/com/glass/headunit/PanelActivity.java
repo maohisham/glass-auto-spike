@@ -29,6 +29,8 @@ public class PanelActivity extends Activity {
     private SpeedFollower speed;
     private int tickCount;
     private long lastSpeedAt;   // when the last GPS speed arrived (0 = none yet)
+    private final SpeedAlertPolicy alertPolicy = new SpeedAlertPolicy();
+    private SpeedAlert speedAlert;
     private static boolean autoPlayScheduled;   // once per process (per panel start)
     private MediaFollower follower;
     private PanelController controller;
@@ -219,6 +221,12 @@ public class PanelActivity extends Activity {
                 DriveTrip.trip().onSpeed(kmh, now);
                 lastSpeedAt = now;
                 panel.showSpeed(kmh, true);
+                Settings st = Settings.of(PanelActivity.this);
+                // beep once when the speed goes over the limit (see SpeedAlertPolicy for when it can sound again)
+                if (st.speedAlert() && alertPolicy.onSpeed(kmh, st.speedLimit())) {
+                    if (speedAlert == null) speedAlert = new SpeedAlert(PanelActivity.this);
+                    speedAlert.play();
+                }
             });
             speed.start();
         }

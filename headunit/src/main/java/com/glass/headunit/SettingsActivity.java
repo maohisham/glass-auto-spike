@@ -62,6 +62,25 @@ public class SettingsActivity extends Activity {
         root.addView(heading("Driving"));
         root.addView(toggle("Driving score and speed (uses the GPS while the panel is open)", s.driveScore(), s::setDriveScore));
 
+        root.addView(toggle("Speed alert: beep once when over the limit", s.speedAlert(), s::setSpeedAlert));
+        final TextView limitText = new TextView(this);
+        limitText.setText("Alert above " + s.speedLimit() + " km/h");
+        root.addView(limitText);
+        SeekBar limitSeek = new SeekBar(this);
+        limitSeek.setMax(28);                                    // 40 to 180 km/h in steps of 5
+        limitSeek.setProgress((s.speedLimit() - 40) / 5);
+        limitSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar sb, int p, boolean user) {
+                int kmh = 40 + p * 5;
+                limitText.setText("Alert above " + kmh + " km/h");
+                if (user) s.setSpeedLimit(kmh);
+            }
+            @Override public void onStartTrackingTouch(SeekBar sb) { }
+            @Override public void onStopTrackingTouch(SeekBar sb) { }
+        });
+        root.addView(limitSeek);
+        root.addView(button("Test the alert sound", () -> new SpeedAlert(this).play()));
+
         root.addView(heading("Prayer zone"));
         zoneRow = new TextView(this);
         root.addView(zoneRow);

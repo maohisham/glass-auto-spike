@@ -245,7 +245,10 @@ final class PanelView extends LinearLayout {
         LinearLayout prayerLine = new LinearLayout(getContext());
         prayerLine.setOrientation(HORIZONTAL);
         prayerLine.setGravity(mode == PanelMode.COMPACT ? Gravity.CENTER_VERTICAL | Gravity.START : Gravity.CENTER_VERTICAL | Gravity.END);
-        prayerLine.addView(new GlyphView(getContext(), Icon.MOSQUE, 24, accent, "Prayer"));
+        TextView mosque = text(20, false, fg);      // the emoji keeps its own colours
+        mosque.setText("🕌");
+        mosque.setContentDescription("Prayer");
+        prayerLine.addView(mosque);
         LayoutParams pl = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         pl.leftMargin = dp(8);
         prayerLine.addView(prayerText, pl);

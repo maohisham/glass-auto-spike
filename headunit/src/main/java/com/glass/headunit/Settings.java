@@ -53,4 +53,12 @@ final class Settings {
     /** The driving score (uses the unit's GPS while the panel is open). On by default. */
     boolean driveScore() { return sp.getBoolean("driveScore", true); }
     void setDriveScore(boolean v) { sp.edit().putBoolean("driveScore", v).apply(); }
+
+    /** Beep once when the speed goes over the limit below (off by default). */
+    boolean speedAlert() { return sp.getBoolean("speedAlert", false); }
+    void setSpeedAlert(boolean v) { sp.edit().putBoolean("speedAlert", v).apply(); }
+
+    /** The speed limit for the alert in km/h, 40 to 180. */
+    int speedLimit() { return sp.getInt("speedLimit", 110); }
+    void setSpeedLimit(int kmh) { sp.edit().putInt("speedLimit", Math.max(40, Math.min(180, kmh))).apply(); }
 }
